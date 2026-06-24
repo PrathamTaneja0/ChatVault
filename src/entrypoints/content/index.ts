@@ -75,11 +75,11 @@ async function startExport(): Promise<void> {
     );
 
     overlay.showPreview(conversation, options, {
-      onPrint: async (conv) => {
-        await handlePrintExport(conv, options);
+      onPrint: async (conv, exportOpts) => {
+        await handlePrintExport(conv, exportOpts);
       },
-      onDownload: async (conv) => {
-        await handleDownloadExport(conv, options);
+      onDownload: async (conv, exportOpts) => {
+        await handleDownloadExport(conv, exportOpts);
       },
       onCancel: () => {
         overlay?.destroy();

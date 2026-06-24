@@ -1,4 +1,5 @@
 import type { Conversation, ExportOptions } from './schema';
+import { filterMessages } from './adapter';
 import { renderConversationHtml } from './render';
 import {
   applyFilenameTemplate,
@@ -146,7 +147,8 @@ function buildPdfContent(
     );
   }
 
-  for (const msg of conversation.messages) {
+  const messages = filterMessages(conversation.messages, options);
+  for (const msg of messages) {
     const role = msg.isThinking ? 'Reasoning' : msg.role;
     const color = role === 'user' ? '#4F46E5' : role === 'assistant' || role === 'Assistant' ? '#059669' : '#6b7280';
     content.push(

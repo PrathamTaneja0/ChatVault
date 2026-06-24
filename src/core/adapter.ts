@@ -50,12 +50,23 @@ export function filterMessages(
     filtered = filtered.filter((m) => !m.isThinking && m.role !== 'reasoning');
   }
 
-  if (options.selectedMessageIds && options.selectedMessageIds.length > 0) {
+  if (options.selectedMessageIds !== undefined) {
     const ids = new Set(options.selectedMessageIds);
     filtered = filtered.filter((m) => ids.has(m.id));
   }
 
   return filtered;
+}
+
+/** Messages eligible for selection in the overlay (thinking filter only). */
+export function getSelectableMessages(
+  messages: Message[],
+  options: ExportOptions,
+): Message[] {
+  if (!options.includeThinking) {
+    return messages.filter((m) => !m.isThinking && m.role !== 'reasoning');
+  }
+  return messages;
 }
 
 export function dedupeMessages(messages: Message[]): Message[] {

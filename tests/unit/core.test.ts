@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Message } from '../../src/core/schema';
-import { dedupeMessages } from '../../src/core/adapter';
+import { dedupeMessages, filterMessages, getSelectableMessages } from '../../src/core/adapter';
+import { DEFAULT_EXPORT_OPTIONS } from '../../src/core/schema';
 import { applyFilenameTemplate, slugify, getTurndown } from '../../src/core/normalize';
 
 describe('schema', () => {
@@ -12,6 +13,55 @@ describe('schema', () => {
     };
     expect(msg.role).toBe('user');
     expect(msg.content).toBe('Hello');
+  });
+});
+
+describe('filterMessages', () => {
+  const messages: Message[] = [
+    { id: '1', role: 'user', content: 'Hi' },
+    { id: '2', role: 'assistant', content: 'Hello' },
+    { id: '3', role: 'reasoning', content: 'Thinking…', isThinking: true },
+  ];
+
+  it('filters by selected message ids', () => {
+    const result = filterMessages(messages, {
+      ...DEFAULT_EXPORT_OPTIONS,
+      selectedMessageIds: ['1', '2'],
+    });
+    expect(result).toHaveLength(2);
+    expect(result.map((m) => m.id)).toEqual(['1', '2']);
+  });
+
+  it('returns no messages when selection is empty', () => {
+    const result = filterMessages(messages, {
+      ...DEFAULT_EXPORT_OPTIONS,
+      selectedMessageIds: [],
+    });
+    expect(result).toHaveLength(0);
+  });
+
+  it('excludes thinking when includeThinking is false', () => {
+    const result = filterMessages(messages, {
+      ...DEFAULT_EXPORT_OPTIONS,
+      includeThinking: false,
+    });
+    expect(result).toHaveLength(2);
+    expect(result.every((m) => m.role !== 'reasoning')).toBe(true);
+  });
+});
+
+describe('getSelectableMessages', () => {
+  it('omits thinking messages when disabled', () => {
+    const messages: Message[] = [
+      { id: '1', role: 'user', content: 'Hi' },
+      { id: '2', role: 'reasoning', content: 'Think', isThinking: true },
+    ];
+    const result = getSelectableMessages(messages, {
+      ...DEFAULT_EXPORT_OPTIONS,
+      includeThinking: false,
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('1');
   });
 });
 
