@@ -1,0 +1,150 @@
+.popup {
+  width: 320px;
+  padding: 16px;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: #1f2937;
+  background: #fff;
+}
+
+.popup-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.popup-header h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.subtitle {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.status {
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-badge.supported {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-badge.unsupported {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-badge.checking {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.status-detail {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.option-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.option-field input[type="text"] {
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.diagnostics {
+  margin-bottom: 16px;
+}
+
+.diagnostics h2 {
+  font-size: 13px;
+  margin: 0 0 8px;
+  color: #374151;
+}
+
+.diagnostics ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 12px;
+}
+
+.diagnostics li {
+  padding: 4px 0;
+  display: flex;
+  justify-content: space-between;
+}
+
+.diagnostics .found { color: #059669; }
+.diagnostics .missing { color: #dc2626; }
+
+.popup-footer {
+  text-align: center;
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(135deg, #4F46E5, #059669);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary:not(:disabled):hover {
+  opacity: 0.9;
+}
+
+.shortcut-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: #9ca3af;
+}
