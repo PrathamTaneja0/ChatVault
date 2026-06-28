@@ -1,4 +1,5 @@
 import type { Conversation, ExportOptions } from './schema';
+import { filterMessages } from './adapter';
 import { renderConversationHtml } from './render';
 import {
   applyFilenameTemplate,
@@ -10,6 +11,18 @@ import {
 export interface ExportResult {
   html: string;
   filename: string;
+}
+
+export function buildExportJson(conversation: Conversation, options: ExportOptions): string {
+  const messages = filterMessages(conversation.messages, options);
+  const payload = {
+    metadata: {
+      ...conversation.metadata,
+      messageCount: messages.length,
+    },
+    messages,
+  };
+  return JSON.stringify(payload, null, 2);
 }
 
 export function buildExportDocument(

@@ -1,5 +1,15 @@
 export type MessageRole = 'user' | 'assistant' | 'system' | 'reasoning';
 
+export type AttachmentKind = 'paste' | 'file' | 'artifact';
+
+export interface Attachment {
+  id: string;
+  kind: AttachmentKind;
+  name?: string;
+  content: string;
+  mimeType?: string;
+}
+
 export interface Message {
   id: string;
   role: MessageRole;
@@ -10,6 +20,8 @@ export interface Message {
   model?: string;
   /** Whether this is a thinking/reasoning chain block */
   isThinking?: boolean;
+  /** Pasted text, artifacts, or other DOM-visible attachments */
+  attachments?: Attachment[];
 }
 
 export interface ConversationMetadata {

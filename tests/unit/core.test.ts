@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import type { Message } from '../../src/core/schema';
 import { dedupeMessages, filterMessages, getSelectableMessages } from '../../src/core/adapter';
 import { DEFAULT_EXPORT_OPTIONS } from '../../src/core/schema';
-import { generateFilename, htmlToPdfMakeContent, extractMainHtml } from '../../src/core/export';
-import { cloneContentWithoutExcluded, queryAllMerged } from '../../src/core/extract-utils';
+import { generateFilename, htmlToPdfMakeContent, extractMainHtml, buildExportJson } from '../../src/core/export';
+import { cloneContentWithoutExcluded, filterNestedMessageElements, queryAllMerged } from '../../src/core/extract-utils';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderConversationHtml } from '../../src/core/render';
@@ -116,6 +116,43 @@ describe('queryAllMerged', () => {
     expect(els[0].tagName.toLowerCase()).toBe('user-query');
     expect(els[1].tagName.toLowerCase()).toBe('model-response');
     expect(els[2].tagName.toLowerCase()).toBe('user-query');
+  });
+});
+
+describe('filterNestedMessageElements', () => {
+  it('removes nested matches keeping outermost elements', () => {
+    document.body.innerHTML = `
+      <div id="outer"><div id="inner">text</div></div>
+    `;
+    const outer = document.getElementById('outer')!;
+    const inner = document.getElementById('inner')!;
+    const filtered = filterNestedMessageElements([outer, inner]);
+    expect(filtered).toEqual([outer]);
+  });
+});
+
+describe('buildExportJson', () => {
+  it('returns filtered conversation JSON with metadata and messages', () => {
+    const json = buildExportJson(
+      {
+        metadata: {
+          title: 'Test',
+          platform: 'gemini',
+          platformLabel: 'Gemini',
+          url: 'https://example.com',
+          exportedAt: '2026-06-28T00:00:00.000Z',
+          messageCount: 2,
+        },
+        messages: [
+          { id: '1', role: 'user', content: 'Hi' },
+          { id: '2', role: 'assistant', content: 'Hello' },
+        ],
+      },
+      DEFAULT_EXPORT_OPTIONS,
+    );
+    const parsed = JSON.parse(json) as { metadata: { title: string }; messages: unknown[] };
+    expect(parsed.metadata.title).toBe('Test');
+    expect(parsed.messages).toHaveLength(2);
   });
 });
 
