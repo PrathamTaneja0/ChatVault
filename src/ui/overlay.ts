@@ -68,6 +68,15 @@ const OVERLAY_STYLES = `
     font-size: 20px;
     line-height: 1;
     flex-shrink: 0;
+    border-radius: 6px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .cv-overlay-close:hover {
+    background: #f3f4f6;
+    color: #111827;
+  }
+  .cv-overlay-close:active {
+    background: #e5e7eb;
   }
   .cv-overlay-body {
     flex: 1;
@@ -281,9 +290,12 @@ export class ExportOverlay {
   private resizeObserver: ResizeObserver | null = null;
   private sidebarCollapsed = false;
   private scalePreviewFrame: number | null = null;
+  private isDestroying = false;
+  private extractingCancelCallback: (() => void) | null = null;
 
   showExtracting(onCancel: () => void): void {
     this.mount();
+    this.extractingCancelCallback = onCancel;
     const body = this.shadow!.querySelector('.cv-overlay-body')!;
     const progress = createProgressBar();
     body.innerHTML = '';
@@ -294,7 +306,7 @@ export class ExportOverlay {
 
     const footer = this.shadow!.querySelector('.cv-overlay-footer')!;
     footer.innerHTML = `<button class="cv-btn cv-btn-ghost" data-action="cancel">Cancel</button>`;
-    footer.querySelector('[data-action="cancel"]')?.addEventListener('click', onCancel);
+    footer.querySelector('[data-action="cancel"]')?.addEventListener('click', () => this.closeOverlay());
 
     this.updateProgress = progress.update;
   }
@@ -374,7 +386,7 @@ export class ExportOverlay {
       <button class="cv-btn cv-btn-primary" data-action="download">Download PDF</button>
     `;
 
-    footer.querySelector('[data-action="cancel"]')?.addEventListener('click', () => callbacks.onCancel());
+    footer.querySelector('[data-action="cancel"]')?.addEventListener('click', () => this.closeOverlay());
     footer.querySelector('[data-action="download"]')?.addEventListener('click', async () => {
       const opts = this.getExportOptions();
       if (!opts || !this.conversation) return;
@@ -488,6 +500,7 @@ export class ExportOverlay {
   }
 
   private scalePreview(): void {
+    if (this.isDestroying) return;
     const viewport = this.shadow?.querySelector('[data-preview-viewport]') as HTMLElement;
     const wrap = this.shadow?.querySelector('[data-scaler-wrap]') as HTMLElement;
     const scaler = this.shadow?.querySelector('[data-scaler]') as HTMLElement;
@@ -537,9 +550,33 @@ export class ExportOverlay {
     });
   }
 
-  destroy(): void {
+  closeOverlay(): void {
+    if (this.isDestroying) return;
+    this.isDestroying = true;
+
+    if (this.scalePreviewFrame !== null) {
+      cancelAnimationFrame(this.scalePreviewFrame);
+      this.scalePreviewFrame = null;
+    }
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    document.removeEventListener('keydown', this.handleKeydown);
+
+    this.abort();
+
+    const notify = this.callbacks?.onClose ?? this.extractingCancelCallback;
+    this.destroy();
+    notify?.();
+  }
+
+  destroy(): void {
+    if (this.scalePreviewFrame !== null) {
+      cancelAnimationFrame(this.scalePreviewFrame);
+      this.scalePreviewFrame = null;
+    }
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+    document.removeEventListener('keydown', this.handleKeydown);
     if (this.previouslyFocused instanceof HTMLElement) {
       this.previouslyFocused.focus();
     }
@@ -589,8 +626,7 @@ export class ExportOverlay {
     this.shadow.append(style, backdrop);
 
     backdrop.querySelector('.cv-overlay-close')?.addEventListener('click', () => {
-      this.abort();
-      this.destroy();
+      this.closeOverlay();
     });
 
     document.addEventListener('keydown', this.handleKeydown);
@@ -600,9 +636,7 @@ export class ExportOverlay {
 
   private handleKeydown = (e: KeyboardEvent): void => {
     if (e.key === 'Escape') {
-      this.abort();
-      this.destroy();
-      document.removeEventListener('keydown', this.handleKeydown);
+      this.closeOverlay();
     }
     if (e.key === 'Tab' && this.shadow) {
       this.handleTab(e);

@@ -57,12 +57,13 @@ async function startExport(): Promise<void> {
 
   isExporting = true;
   overlay = new ExportOverlay();
-  overlay.showExtracting(() => {
-    overlay?.abort();
-    overlay?.destroy();
+
+  const finishExport = (): void => {
     overlay = null;
     isExporting = false;
-  });
+  };
+
+  overlay.showExtracting(finishExport);
 
   const options = await loadOptions();
   const signal = overlay.getAbortSignal();
@@ -78,16 +79,8 @@ async function startExport(): Promise<void> {
       onDownload: async (conv, exportOpts) => {
         await handleDownloadExport(conv, exportOpts);
       },
-      onCancel: () => {
-        overlay?.destroy();
-        overlay = null;
-        isExporting = false;
-      },
-      onClose: () => {
-        overlay?.destroy();
-        overlay = null;
-        isExporting = false;
-      },
+      onCancel: finishExport,
+      onClose: finishExport,
     });
   } catch (err) {
     const msg =
@@ -97,10 +90,7 @@ async function startExport(): Promise<void> {
           ? err.message
           : 'Unknown error';
     alert(`ChatVault Export failed: ${msg}`);
-    overlay?.destroy();
-    overlay = null;
-  } finally {
-    isExporting = false;
+    overlay?.closeOverlay();
   }
 }
 
