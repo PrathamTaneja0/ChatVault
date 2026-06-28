@@ -5,6 +5,7 @@ import { DEFAULT_EXPORT_OPTIONS } from '../../src/core/schema';
 import { generateFilename, htmlToPdfMakeContent, extractMainHtml } from '../../src/core/export';
 import { cloneContentWithoutExcluded, queryAllMerged } from '../../src/core/extract-utils';
 import { renderConversationHtml } from '../../src/core/render';
+import printCss from '../../src/assets/print.css?raw';
 import {
   applyFilenameTemplate,
   normalizeContent,
@@ -225,8 +226,9 @@ describe('renderConversationHtml', () => {
 
   it('styles message body text in black', () => {
     const html = renderConversationHtml(baseConversation, DEFAULT_EXPORT_OPTIONS);
-    expect(html).toContain('.message-body');
-    expect(html).toContain('color: #000000');
+    expect(html).toContain('class="message-body"');
+    expect(printCss).toContain('.message-body');
+    expect(printCss).toContain('color: #000000');
   });
 
   it('does not render a table of contents even with many messages', () => {
