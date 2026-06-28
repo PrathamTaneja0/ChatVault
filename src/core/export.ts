@@ -157,8 +157,9 @@ export async function downloadViaPdfMake(
       color: '#1f2937',
     },
     styles: {
-      'message-user': { color: '#4F46E5', bold: true },
-      'message-assistant': { color: '#059669', bold: true },
+      'message-role-user': { color: '#4F46E5', bold: true },
+      'message-role-assistant': { color: '#059669', bold: true },
+      'message-role-reasoning': { color: '#6b7280', bold: true, italics: true },
     },
   };
 

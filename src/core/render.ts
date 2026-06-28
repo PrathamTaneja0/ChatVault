@@ -67,7 +67,7 @@ function renderMessageHtml(msg: Message, index: number): string {
   return `
     <section class="message ${roleCssClass(role)}" id="${anchor}">
       <header class="message-header">
-        <span class="message-role">${escapeHtml(roleLabel(role))}</span>
+        <span class="message-role message-role-${role}">${escapeHtml(roleLabel(role))}</span>
         ${msg.model ? `<span class="message-model">${escapeHtml(msg.model)}</span>` : ''}
         ${msg.timestamp ? `<span class="message-time">${escapeHtml(formatDate(msg.timestamp))}</span>` : ''}
       </header>
