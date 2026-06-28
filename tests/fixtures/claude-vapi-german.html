@@ -1,0 +1,72 @@
+<main>
+  <div data-test-render-count="2" class="grid group">
+    <div class="mb-1 mt-[var(--msg-gap,1.5rem)] group">
+      <div class="gap-2 mx-0.5 mb-3 flex flex-wrap justify-end">
+        <div data-testid="file-thumbnail">
+          <button aria-label="Pasted Text, pasted, 191 lines">
+            <p class="line-clamp-[6]"># Identity &amp; Personality
+You are a realistic roleplay simulator built for sales training at Hilti.
+You play exclusively the role of Thomas Meyer...</p>
+            <p class="uppercase">pasted</p>
+          </button>
+        </div>
+      </div>
+      <div class="flex flex-col items-end gap-1">
+        <div data-testid="user-message" class="grid">
+          <div class="!font-user-message">translate this vapi prompt to german. i wanna make a german version of the same agent. make sure that the translation is making sense and maintaining its meaning, not just text to text translation.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div data-test-render-count="2" class="grid group">
+    <div class="font-claude-response">
+      <div class="row-start-1">
+        <button class="group/status">
+          <span class="truncate font-base">Orchestrated comprehensive German translation preserving nuance and business context</span>
+        </button>
+        <span class="sr-only" role="status">Orchestrated comprehensive German translation preserving nuance and business context</span>
+      </div>
+      <div class="font-claude-response-body">
+        <div class="row-start-1 standard-markdown">
+          <p>A few translation choices worth flagging, since they affect tone in a German VAPI agent:</p>
+          <ul>
+            <li><strong>Register</strong>: Kept consistent formal "Sie" between Thomas and the advisor throughout.</li>
+            <li><strong>Spoken numbers</strong>: Written out as TTS will need to say them naturally.</li>
+          </ul>
+        </div>
+        <div class="group/artifact-block relative flex">
+          <button type="button" class="absolute inset-0" aria-label="View Hilti vapi prompt deutsch"></button>
+          <div class="artifact-block-cell" data-testid="artifact-card">
+            <div class="leading-tight text-sm line-clamp-1">Hilti vapi prompt deutsch</div>
+            <div class="text-xs line-clamp-1 text-text-400">Document · MD</div>
+            <button type="button" aria-label="Download Hilti vapi prompt deutsch">Download</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="flex h-full flex-col pb-1 pl-5 pt-3">
+    <div class="sticky flex items-center gap-1 pr-5">
+      <button aria-label="Back">Back</button>
+      <h2 class="font-ui flex-1 truncate text-lg font-medium">Pasted content</h2>
+      <button aria-label="Copy pasted content">Copy</button>
+      <button aria-label="Close">Close</button>
+    </div>
+    <p>19.30 KB • 191 lines • Formatting may be inconsistent from source</p>
+    <div class="font-mono whitespace-pre-wrap"># Identity &amp; Personality
+
+You are a realistic roleplay simulator built for sales training at Hilti.
+You play exclusively the role of Thomas Meyer, an existing Hilti customer who calls a Hilti sales advisor about a current price concern. The user you are speaking with is the Hilti sales advisor. This is a long pasted prompt body used for export testing and must exceed the preview truncation threshold so hydration can distinguish preview from full content. Additional guardrails and scoring criteria follow below for the roleplay training scenario.</div>
+  </div>
+  <aside class="artifact-panel split-view">
+    <button aria-label="Copy document">Copy</button>
+    <div class="standard-markdown">
+      <h1>Identität &amp; Persönlichkeit</h1>
+      <p>Du bist Thomas Meyer, ein Hilti-Kunde der wegen eines Preisproblems anruft.</p>
+      <h2>Wer du bist:</h2>
+      <ul>
+        <li>Inhaber eines Bauunternehmens mit ca. fünfzig Mitarbeitern</li>
+      </ul>
+    </div>
+  </aside>
+</main>

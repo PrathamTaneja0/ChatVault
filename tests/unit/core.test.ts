@@ -299,6 +299,79 @@ describe('renderConversationHtml', () => {
     expect(html).not.toContain('message-role-reasoning');
     expect(html).toContain('message-role-assistant');
   });
+
+  it('renders paste attachments before user body text', () => {
+    const html = renderConversationHtml(
+      {
+        ...baseConversation,
+        messages: [
+          {
+            id: '1',
+            role: 'user',
+            content: 'translate this prompt',
+            attachments: [
+              {
+                id: 'p1',
+                kind: 'paste',
+                name: 'Pasted content',
+                content: '# Identity\n\nYou are a roleplay simulator for Hilti sales training.',
+              },
+            ],
+          },
+        ],
+      },
+      DEFAULT_EXPORT_OPTIONS,
+    );
+    const pasteIdx = html.indexOf('roleplay simulator');
+    const promptIdx = html.indexOf('translate this prompt');
+    expect(pasteIdx).toBeGreaterThan(-1);
+    expect(promptIdx).toBeGreaterThan(pasteIdx);
+    expect(html).toContain('message-attachment-paste');
+  });
+
+  it('renders assistant artifact content from enriched message.content', () => {
+    const html = renderConversationHtml(
+      {
+        ...baseConversation,
+        messages: [
+          {
+            id: '1',
+            role: 'assistant',
+            content: 'Notes here.\n\n## Hilti vapi prompt deutsch\n\n# Identität\n\nThomas Meyer body.',
+            html: '<p>Notes here.</p>',
+          },
+        ],
+      },
+      DEFAULT_EXPORT_OPTIONS,
+    );
+    expect(html).toContain('Identität');
+    expect(html).toContain('Thomas Meyer');
+  });
+
+  it('does not render label-only artifact attachments', () => {
+    const html = renderConversationHtml(
+      {
+        ...baseConversation,
+        messages: [
+          {
+            id: '1',
+            role: 'assistant',
+            content: 'Notes only.',
+            attachments: [
+              {
+                id: 'a1',
+                kind: 'artifact',
+                name: 'Hilti vapi prompt deutsch',
+                content: 'Hilti vapi prompt deutsch Document · MD',
+              },
+            ],
+          },
+        ],
+      },
+      DEFAULT_EXPORT_OPTIONS,
+    );
+    expect(html).not.toContain('message-attachment-artifact');
+  });
 });
 
 describe('stripPlatformPrefixes', () => {
@@ -311,6 +384,17 @@ describe('normalizeContent', () => {
   it('strips platform prefix from plain content', () => {
     const msg: Message = { id: '1', role: 'user', content: 'You said https://example.com' };
     expect(normalizeContent(msg)).toBe('https://example.com');
+  });
+
+  it('prefers richer content over shorter html when artifacts were merged', () => {
+    const msg: Message = {
+      id: '1',
+      role: 'assistant',
+      content: 'Commentary\n\n## German doc\n\nIdentität & Persönlichkeit\n\nFull body text here.',
+      html: '<p>Commentary</p>',
+    };
+    expect(normalizeContent(msg)).toContain('Identität');
+    expect(normalizeContent(msg)).toContain('Full body text');
   });
 });
 

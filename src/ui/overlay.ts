@@ -832,7 +832,8 @@ export class ExportOverlay {
   }
 
   private handleKeydown = (e: KeyboardEvent): void => {
-    if (e.key === 'Escape') {
+    // Ignore synthetic Escape from hydration (used to dismiss Claude paste viewers)
+    if (e.key === 'Escape' && e.isTrusted) {
       this.closeOverlay();
     }
     if (e.key === 'Tab' && this.shadow) {

@@ -9,9 +9,10 @@ import json from 'highlight.js/lib/languages/json';
 import css from 'highlight.js/lib/languages/css';
 import xml from 'highlight.js/lib/languages/xml';
 import markdown from 'highlight.js/lib/languages/markdown';
-import type { Conversation, ExportOptions, Message } from './schema';
+import type { Attachment, AttachmentKind, Conversation, ExportOptions, Message } from './schema';
 import { filterMessages } from './adapter';
 import { normalizeContent, formatDate, roleCssClass, roleLabel } from './normalize';
+import { isArtifactLabelOnly } from './extract-utils';
 import printCss from '../assets/print.css?raw';
 
 hljs.registerLanguage('javascript', javascript);
@@ -58,32 +59,56 @@ const PREVIEW_SCREEN_CSS = `
 }
 `;
 
-function renderAttachmentsHtml(msg: Message): string {
+function contentIncludesAttachment(mainContent: string, att: Attachment): boolean {
+  const normalize = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
+  const main = normalize(mainContent);
+  const attNorm = normalize(att.content);
+  if (attNorm.length < 40) return main.includes(attNorm);
+  return main.includes(attNorm.slice(0, Math.min(120, attNorm.length)));
+}
+
+function isPasteLabelOnly(content: string): boolean {
+  const trimmed = content.trim();
+  return trimmed === 'PASTED' || (trimmed.length < 25 && !trimmed.includes('\n') && !trimmed.startsWith('#'));
+}
+
+function shouldRenderAttachment(att: Attachment, mainContent: string): boolean {
+  if (att.kind === 'paste') {
+    if (isPasteLabelOnly(att.content)) return false;
+    return !contentIncludesAttachment(mainContent, att);
+  }
+  if (isArtifactLabelOnly(att.content, att.name)) return false;
+  if (att.content.length < 80) return false;
+  return !contentIncludesAttachment(mainContent, att);
+}
+
+function renderSingleAttachment(att: Attachment): string {
+  const title = att.name ?? (att.kind === 'paste' ? 'Pasted content' : 'Attachment');
+  const body = marked.parse(att.content) as string;
+  return `
+    <div class="message-attachment message-attachment-${att.kind}">
+      <h4 class="attachment-title">${escapeHtml(title)}</h4>
+      <div class="attachment-body">${body}</div>
+    </div>
+  `;
+}
+
+function renderAttachmentsHtml(msg: Message, kinds: AttachmentKind[]): string {
   if (!msg.attachments?.length) return '';
   const mainContent = normalizeContent(msg);
   return msg.attachments
-    .filter((att) => {
-      if (att.content.length < 80) return false;
-      const snippet = att.content.slice(0, Math.min(60, att.content.length));
-      return !mainContent.includes(snippet);
-    })
-    .map((att) => {
-      const title = att.name ?? (att.kind === 'paste' ? 'Pasted content' : 'Attachment');
-      const body = marked.parse(att.content) as string;
-      return `
-        <div class="message-attachment message-attachment-${att.kind}">
-          <h4 class="attachment-title">${escapeHtml(title)}</h4>
-          <div class="attachment-body">${body}</div>
-        </div>
-      `;
-    })
+    .filter((att) => kinds.includes(att.kind) && shouldRenderAttachment(att, mainContent))
+    .map(renderSingleAttachment)
     .join('');
 }
 
 function renderMessageHtml(msg: Message, index: number): string {
   const content = normalizeContent(msg);
   const rendered = marked.parse(content) as string;
-  const attachmentsHtml = renderAttachmentsHtml(msg);
+  const pasteHtml = renderAttachmentsHtml(msg, ['paste']);
+  const artifactHtml = renderAttachmentsHtml(msg, ['artifact', 'file']);
+  const bodyHtml =
+    msg.role === 'user' ? `${pasteHtml}${rendered}` : `${rendered}${artifactHtml}`;
   const anchor = `msg-${index + 1}`;
   const role = msg.isThinking ? 'reasoning' : msg.role;
 
@@ -94,7 +119,7 @@ function renderMessageHtml(msg: Message, index: number): string {
         ${msg.model ? `<span class="message-model">${escapeHtml(msg.model)}</span>` : ''}
         ${msg.timestamp ? `<span class="message-time">${escapeHtml(formatDate(msg.timestamp))}</span>` : ''}
       </header>
-      <div class="message-body">${rendered}${attachmentsHtml}</div>
+      <div class="message-body">${bodyHtml}</div>
     </section>
   `;
 }

@@ -33,12 +33,20 @@ export function htmlToMarkdown(html: string): string {
 }
 
 export function normalizeContent(message: Message): string {
+  const fromContent = message.content.trim();
+  const fromHtml = message.html ? htmlToMarkdown(message.html) : '';
+
   let text: string;
-  if (message.html) {
-    text = htmlToMarkdown(message.html);
+  if (!fromHtml) {
+    text = fromContent;
+  } else if (!fromContent) {
+    text = fromHtml;
+  } else if (fromContent.length > fromHtml.length * 1.2) {
+    text = fromContent;
   } else {
-    text = message.content.trim();
+    text = fromHtml;
   }
+
   return stripSuggestionChipText(stripPlatformPrefixes(text));
 }
 

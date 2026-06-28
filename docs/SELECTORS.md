@@ -30,8 +30,12 @@ Each adapter defines:
 
 | Field | Selectors |
 |---|---|
-| message | `[data-testid="user-message"]`, `[data-testid="assistant-message"]` |
-| thinking | `.thinking-block`, `[data-is-thinking]` |
+| user turn | `[data-test-render-count]` groups containing `[data-testid="user-message"]`, fallback `[data-testid="user-message"]` |
+| assistant turn | `.font-claude-response` (top-level, nested-filtered) |
+| paste blocks | `[data-testid="file-thumbnail"]`, `.artifact-block-cell`, `[class*="paste-preview"]`, preceding siblings with `PASTED` label |
+| paste panel (hydration) | Click `file-thumbnail` → **"Pasted content"** overlay. Live UI: `h2.font-ui` title inside generic `div` stack (not `dialog`/`aside`). Climb from title to first ancestor with Copy button + body ≥ 400 chars (`flex h-full flex-col` wrapper). Read `[class*="font-mono"]` / `pre` or panel Copy. **No network request** on paste click. Dismiss via Close/Back. |
+| artifacts | `[class*="artifact-block"]`, `.group/artifact-block` — click `button[aria-label^="View "]` or `button.absolute.inset-0`. Live side panel: climb from `h1`/`h2` title to ancestor with Copy + body ≥ 100 chars (same generic div stack as paste; body may be `[class*="font-mono"]` not `.standard-markdown`). Fallback: `download-file` via page-world fetch hook + Performance API URL + direct `fetch(credentials: include)`. |
+| thinking | `.thinking-block`, `[data-is-thinking="true"]` |
 
 ### DeepSeek (`chat.deepseek.com`)
 

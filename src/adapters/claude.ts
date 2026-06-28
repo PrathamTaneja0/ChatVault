@@ -2,24 +2,23 @@ import type { Conversation, Message } from '../core/schema';
 import type { PlatformAdapter } from '../core/adapter';
 import { dedupeMessages } from '../core/adapter';
 import {
-  cloneContentWithoutExcluded,
-  DEFAULT_ASSISTANT_EXCLUDE_SELECTORS,
   enforceTurnLimit,
   filterNestedMessageElements,
   generateId,
   getPageTitle,
   queryAllFirst,
-  queryAllMerged,
   scrollSweep,
+  sortElementsByDomOrder,
   withCircuitBreaker,
 } from '../core/extract-utils';
 import { normalizeContent, resolveConversationTitle, stripSuggestionChipText } from '../core/normalize';
-import { detectRole, matchesRoleSelector } from './base';
 import {
   buildClaudeUserTurnContent,
   extractClaudeAssistantArtifacts,
+  extractClaudeAssistantCommentary,
   extractClaudeUserPastes,
 } from './claude-extract';
+import { preExtractHydration, isClaudeChatStreamTurn } from './claude-hydrate';
 import { createBaseAdapter } from './base';
 
 const selectors = {
@@ -49,7 +48,7 @@ const selectors = {
   ],
   title: ['[data-testid="chat-title"]', 'title'],
   model: ['[data-testid="model-selector"]'],
-  thinking: ['.thinking-block', '[data-is-thinking]'],
+  thinking: ['.thinking-block', '[data-is-thinking="true"]'],
 };
 
 const excludeSelectors = [
@@ -59,13 +58,52 @@ const excludeSelectors = [
 ];
 
 function expandClaudePasteBlocks(document: Document): void {
-  document.querySelectorAll('.artifact-block-cell button, [class*="PASTED"] button').forEach((btn) => {
-    if (btn instanceof HTMLButtonElement) {
-      const label = btn.getAttribute('aria-label')?.toLowerCase() ?? btn.textContent?.toLowerCase() ?? '';
-      if (label.includes('expand') || label.includes('show') || label.includes('more')) {
-        btn.click();
+  document
+    .querySelectorAll('.artifact-block-cell button, [class*="paste"] button, [class*="PASTED"] button')
+    .forEach((btn) => {
+      if (btn instanceof HTMLButtonElement) {
+        const label =
+          btn.getAttribute('aria-label')?.toLowerCase() ?? btn.textContent?.toLowerCase() ?? '';
+        if (label.includes('expand') || label.includes('show') || label.includes('more')) {
+          btn.click();
+        }
       }
+    });
+}
+
+interface ClaudeTurn {
+  el: Element;
+  role: 'user' | 'assistant';
+}
+
+function collectClaudeTurns(document: Document): ClaudeTurn[] {
+  const seen = new Set<Element>();
+  const turns: ClaudeTurn[] = [];
+
+  document.querySelectorAll('[data-testid="user-message"]').forEach((userEl) => {
+    if (seen.has(userEl)) return;
+    if (!isClaudeChatStreamTurn(userEl)) return;
+    seen.add(userEl);
+    turns.push({ el: userEl, role: 'user' });
+  });
+
+  document.querySelectorAll('.font-claude-response').forEach((el) => {
+    if (seen.has(el)) return;
+    if (!isClaudeChatStreamTurn(el)) return;
+    const nested = turns.some((t) => t.el.contains(el));
+    if (nested) return;
+    seen.add(el);
+    turns.push({ el, role: 'assistant' });
+  });
+
+  return sortElementsByDomOrder(turns.map((t) => t.el)).map((el) => {
+    if (el.matches('[data-testid="user-message"]') || el.querySelector('[data-testid="user-message"]')) {
+      const userEl = el.matches('[data-testid="user-message"]')
+        ? el
+        : el.querySelector('[data-testid="user-message"]')!;
+      return { el: userEl, role: 'user' as const };
     }
+    return { el, role: 'assistant' as const };
   });
 }
 
@@ -88,26 +126,38 @@ export const claudeAdapter: PlatformAdapter = {
     return withCircuitBreaker(async () => {
       onProgress?.({ phase: 'detecting', message: 'Detecting Claude chat…', percent: 0 });
 
-      const container = queryAllFirst(document, selectors.container)[0]
-        ?? document.querySelector('main')
-        ?? document.body;
+      const container =
+        queryAllFirst(document, selectors.container)[0] ??
+        document.querySelector('main') ??
+        document.body;
 
       await scrollSweep(container, onProgress, signal);
       expandClaudePasteBlocks(document);
 
+      onProgress?.({ phase: 'waiting', message: 'Loading pasted content and documents…', percent: 30 });
+      const hydrationCache = await preExtractHydration(document, onProgress, signal);
+
       onProgress?.({ phase: 'extracting', message: 'Extracting messages…', percent: 50 });
 
-      const messageEls = filterNestedMessageElements(queryAllMerged(document, selectors.message));
+      const turns = collectClaudeTurns(document);
+      const turnEls = filterNestedMessageElements(turns.map((t) => t.el));
+      const turnMap = new Map(turns.map((t) => [t.el, t.role]));
       const messages: Message[] = [];
+      const priorUserTexts: string[] = [];
 
-      for (let index = 0; index < messageEls.length; index++) {
-        const el = messageEls[index];
-        const role = detectRole(el, selectors, index);
+      for (let index = 0; index < turnEls.length; index++) {
+        const el = turnEls[index];
+        const role = turnMap.get(el) ?? (el.matches('[data-testid="user-message"]') ? 'user' : 'assistant');
 
-        if (role === 'user' && el.matches('[data-testid="user-message"]')) {
-          const turn = buildClaudeUserTurnContent(el);
+        if (role === 'user') {
+          const userEl = el.matches('[data-testid="user-message"]')
+            ? el
+            : el.querySelector('[data-testid="user-message"]') ?? el;
+
+          const turn = buildClaudeUserTurnContent(userEl);
           let content = stripSuggestionChipText(turn.text);
-          const attachments = extractClaudeUserPastes(el, index);
+          const attachments = extractClaudeUserPastes(userEl, index, hydrationCache);
+
           if (!content && attachments.length > 0) {
             content = attachments.map((a) => a.content).join('\n\n');
           }
@@ -120,51 +170,42 @@ export const claudeAdapter: PlatformAdapter = {
             html: turn.html,
             attachments: attachments.length > 0 ? attachments : undefined,
           });
+          priorUserTexts.push(content);
           continue;
         }
 
-        if (role === 'assistant') {
-          const contentEl =
-            queryAllFirst(el, selectors.content)[0] ?? el;
-          const excludeList = [...DEFAULT_ASSISTANT_EXCLUDE_SELECTORS, ...excludeSelectors];
-          const clone = cloneContentWithoutExcluded(contentEl, excludeList);
-          let content = stripSuggestionChipText(clone.textContent?.trim() ?? '');
-          const attachments = await extractClaudeAssistantArtifacts(el, document, index, signal);
+        const commentary = extractClaudeAssistantCommentary(el);
+        let content = stripSuggestionChipText(commentary.text);
+        const attachments = await extractClaudeAssistantArtifacts(
+          el,
+          document,
+          index,
+          signal,
+          priorUserTexts,
+          hydrationCache,
+        );
 
-          if (attachments.length > 0) {
-            const artifactText = attachments.map((a) => a.content).join('\n\n');
-            if (!content.includes(artifactText.slice(0, 60))) {
-              content = content ? `${content}\n\n${artifactText}` : artifactText;
-            }
+        if (attachments.length > 0) {
+          const artifactSections = attachments.map((a) => `## ${a.name}\n\n${a.content}`);
+          const artifactText = artifactSections.join('\n\n');
+          if (!content.includes(artifactText.slice(0, Math.min(60, artifactText.length)))) {
+            content = content ? `${content}\n\n${artifactText}` : artifactText;
           }
-
-          if (!content) continue;
-
-          const isThinking =
-            selectors.thinking?.some((s) => el.matches(s) || el.querySelector(s)) ?? false;
-
-          messages.push({
-            id: generateId('claude', index),
-            role: isThinking ? 'reasoning' : 'assistant',
-            content,
-            html: clone.innerHTML,
-            isThinking,
-            attachments: attachments.length > 0 ? attachments : undefined,
-          });
-          continue;
         }
 
-        if (matchesRoleSelector(el, selectors.roleUser)) {
-          const turn = buildClaudeUserTurnContent(el);
-          const content = stripSuggestionChipText(turn.text);
-          if (!content) continue;
-          messages.push({
-            id: generateId('claude', index),
-            role: 'user',
-            content,
-            html: turn.html,
-          });
-        }
+        if (!content) continue;
+
+        const hasThinkingChrome = !!el.querySelector('.thinking-block, [data-is-thinking="true"]');
+        const isThinking = hasThinkingChrome && !commentary.text.trim();
+
+        messages.push({
+          id: generateId('claude', index),
+          role: isThinking ? 'reasoning' : 'assistant',
+          content,
+          html: attachments.length > 0 ? undefined : commentary.html,
+          isThinking,
+          attachments: attachments.length > 0 ? attachments : undefined,
+        });
       }
 
       const deduped = dedupeMessages(messages);
