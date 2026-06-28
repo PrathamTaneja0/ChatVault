@@ -31,13 +31,11 @@ export interface ExportOptions {
   includeThinking: boolean;
   selectedMessageIds?: string[];
   filenameTemplate?: string;
-  tableOfContents: boolean;
 }
 
 export const DEFAULT_EXPORT_OPTIONS: ExportOptions = {
   includeThinking: true,
   filenameTemplate: 'ChatVault_{title}',
-  tableOfContents: true,
 };
 
 export const MAX_TURNS = 500;

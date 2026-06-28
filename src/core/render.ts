@@ -92,33 +92,12 @@ function renderConversationTitle(title: string): string {
   `;
 }
 
-function renderToc(messages: Message[]): string {
-  if (messages.length <= 10) return '';
-
-  const items = messages
-    .map((msg, i) => {
-      const preview = normalizeContent(msg).slice(0, 80).replace(/\n/g, ' ');
-      const role = msg.isThinking ? 'reasoning' : msg.role;
-      return `<li><a href="#msg-${i + 1}"><span class="toc-role">${roleLabel(role)}</span> ${escapeHtml(preview)}…</a></li>`;
-    })
-    .join('\n');
-
-  return `
-    <nav class="toc">
-      <h2>Table of Contents</h2>
-      <ol>${items}</ol>
-    </nav>
-    <div class="page-break"></div>
-  `;
-}
-
 export function renderConversationHtml(
   conversation: Conversation,
   options: ExportOptions,
   mode: RenderMode = 'export',
 ): string {
   const messages = filterMessages(conversation.messages, options);
-  const showToc = options.tableOfContents && messages.length > 10;
   const title = conversation.metadata.title ?? 'Chat Export';
 
   const body = messages.map((m, i) => renderMessageHtml(m, i)).join('\n');
@@ -136,7 +115,6 @@ export function renderConversationHtml(
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css">
 </head>
 <body>
-  ${showToc ? renderToc(messages) : ''}
   <main class="conversation">
     ${renderConversationTitle(title)}
     ${body}
