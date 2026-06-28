@@ -35,11 +35,6 @@ export interface SelectorDiagnostic {
   count: number;
 }
 
-export interface AdapterContext {
-  options: ExportOptions;
-  signal?: AbortSignal;
-}
-
 export function filterMessages(
   messages: Message[],
   options: ExportOptions,

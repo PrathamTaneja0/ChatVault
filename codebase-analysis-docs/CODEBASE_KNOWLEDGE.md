@@ -14,7 +14,8 @@
 4. [Things You Must Know Before Changing Code](#4-things-you-must-know-before-changing-code)
 5. [Technical Reference & Glossary](#5-technical-reference--glossary)
 6. [Inconsistencies & Gaps Audit](#6-inconsistencies--gaps-audit)
-7. [File Index](#7-file-index)
+7. [Cleanup Changelog (2026-06-28)](#7-cleanup-changelog-2026-06-28)
+8. [File Index](#8-file-index)
 
 ---
 
@@ -483,72 +484,85 @@ Load unpacked: `chrome://extensions` → `.output/chrome-mv3/`
 
 ## 6. Inconsistencies & Gaps Audit
 
-> **No code was changed during this audit.** These are findings for future fixes.
+> **Updated after cleanup pass (2026-06-28).** Resolved items marked ✅.
 
 ### 6.1 Critical / Functional
 
-| # | Issue | Evidence | Impact |
-|---|-------|----------|--------|
-| C1 | **Popup missing from repo** | `readme.md` documents popup; `src/entrypoints/popup/` absent from git and disk; build output has no popup bundle | Options UI, diagnostics, filename template editing unavailable |
-| C2 | **Message handlers incomplete** | `messages.ts` defines `GET_STATUS`, `GET_DIAGNOSTICS`, etc.; `content/index.ts` only handles `TRIGGER_EXPORT` | Even if popup existed, status/diagnostics would fail |
-| C3 | **TOC documented but not implemented** | `readme.md` L104: "TOC – auto-generated when >10 messages"; `render.ts` has no TOC; `core.test.ts` L273 asserts no TOC | User expectation mismatch |
-| C4 | **Host permission gaps** | Content matches `kimi.com`; `wxt.config.ts` host_permissions omit it. Qwen adapter matches `qwen.ai`; manifest only `chat.qwen.ai` | Possible permission errors on those domains |
-| C5 | **Toolbar has no popup** | `wxt.config.ts` action has `default_title` only, no `default_popup`; `background.ts` uses `onClicked` | Toolbar click triggers export directly, contradicting readme popup docs |
+| # | Issue | Status |
+|---|-------|--------|
+| C1 | Popup missing from repo | **Open** — docs now describe overlay-only UX; popup not restored |
+| C2 | Message handlers incomplete | ✅ **Resolved** — `messages.ts` slimmed to `TRIGGER_EXPORT` only |
+| C3 | TOC documented but not implemented | ✅ **Resolved** — removed from readme; not implemented by design |
+| C4 | Host permission gaps | ✅ **Resolved** — `kimi.com` and `qwen.ai` added to `wxt.config.ts` |
+| C5 | Toolbar has no popup | ✅ **Resolved** — docs updated; toolbar triggers direct export |
 
 ### 6.2 Documentation vs Code
 
-| Doc Claim | Actual Code |
-|-----------|-------------|
-| README workflow "Print" path (`printViaIframe`) | `printViaIframe` exported in `export.ts` L55, **zero callers**; overlay has no Print button |
-| README "Table of contents" option in popup | Popup doesn't exist; `ExportOptions` has no `tableOfContents` field |
-| README tests: "schema, deduplication, filename, slugify, turndown" | Also covers render, pdfmake, attachments, Claude (25 tests), Perplexity (1 test) |
-| `docs/SELECTORS.md` Perplexity selectors | Docs: `[data-testid="user-message"]`; code: `div[class*="group/query"]` + `div[id^="markdown-content-"]` |
-| `docs/SELECTORS.md` Claude grouping | Docs mention `[data-test-render-count]`; code primarily uses `[data-testid="user-message"]` + `.font-claude-response` |
-| `docs/PRIVACY.md` "print engine or pdfmake" | Only pdfmake download path used in UI |
-| `readme.md` architecture lists `popup/` | Directory not present in repo |
+| Doc Claim | Status |
+|-----------|--------|
+| README workflow "Print" path | ✅ Removed from docs; `printViaIframe` deleted |
+| README "Table of contents" option | ✅ Removed from docs |
+| README tests list incomplete | ✅ Updated to list all 3 suites (62 tests) |
+| `docs/SELECTORS.md` Perplexity selectors | ✅ Updated to match adapter |
+| `docs/PRIVACY.md` "print engine or pdfmake" | ✅ Updated to pdfmake only |
+| `readme.md` architecture lists `popup/` | ✅ Removed; added `html-utils.ts` |
 
 ### 6.3 Dead / Unused Code
 
-| Symbol | Location | Notes |
-|--------|----------|-------|
-| `printViaIframe()` | `src/core/export.ts` | No callers |
-| `removeFab()` | `src/ui/fab.ts` | Exported, never used |
-| `AdapterContext` | `src/core/adapter.ts` | Interface defined, never used |
-| Message types | `src/core/messages.ts` | `EXPORT_PROGRESS`, `CANCEL_EXPORT`, `GET_OPTIONS`, `OPTIONS_RESPONSE`, `SAVE_OPTIONS`, `STATUS_RESPONSE` — not wired |
-| `webextension-polyfill` | `package.json` | Dependency never imported |
-| `coverPage` | `src/core/storage.ts` | Legacy field stripped on load only |
+| Symbol | Status |
+|--------|--------|
+| `printViaIframe()` | ✅ Removed |
+| `removeFab()` | ✅ Removed |
+| `AdapterContext` | ✅ Removed |
+| Unused message types | ✅ Removed from `messages.ts` |
+| `webextension-polyfill` | ✅ Removed from `package.json` |
+| `coverPage` legacy strip | Kept (active backward-compat) |
 
 ### 6.4 Duplicate Logic
 
-| Logic | Locations |
-|-------|-----------|
-| `escapeHtml()` | `src/core/render.ts`, `src/ui/overlay.ts` |
-| `isPasteLabelOnly()` | `src/core/render.ts`, `src/adapters/claude-extract.ts` |
-| `extractArtifactTitle()` / `extractArtifactTitleFromCard()` | `claude-extract.ts`, `claude-hydrate.ts` (near-identical) |
-| Turn merging pattern | `perplexity.ts` custom collect vs `queryAllMerged()` in `extract-utils.ts` |
+| Logic | Status |
+|-------|--------|
+| `escapeHtml()` | ✅ Consolidated in `src/core/html-utils.ts` |
+| `isPasteLabelOnly()` | ✅ Consolidated in `src/core/extract-utils.ts` |
+| `extractArtifactTitle()` | ✅ Single export from `claude-hydrate.ts` |
+| Turn merging pattern (Perplexity) | **Open** — intentional custom extract; not duplicated |
 
-### 6.5 Naming / Pattern Inconsistencies
+### 6.5 Remaining Open Items
 
 | Item | Detail |
 |------|--------|
-| README filename | `readme.md` (lowercase) vs conventional `README.md` |
-| Package vs product | npm `chatvault-export` vs manifest "ChatVault Export" |
-| Options UI split | Overlay exposes thinking toggle; filename template documented in readme popup (missing) |
-| Perplexity URL | Manifest: `www.perplexity.ai`; adapter regex `/perplexity\.ai/` is broader |
-| Grok on x.com | `/x\.com/i` matches all X/Twitter pages where content script injects |
-| Claude complexity | Only platform with 3 files + UI automation; others use factory |
-| Test imports | Vitest config has `@` alias; tests use relative imports |
-| `scripts/generate-icons.mjs` | Exists but not wired to npm scripts |
-
-### 6.6 Type / Schema Gaps
-
-- `ExportOptions` lacks `tableOfContents` (referenced in stale popup index if it existed)
-- `generateFilename()` `{count}` uses unfiltered message count
-- Built manifest content_scripts matches sorted alphabetically (WXT behavior) — functionally fine
+| Popup UI | Not implemented; overlay is sole options surface |
+| `generateFilename()` `{count}` | Uses unfiltered message count |
+| 10/12 adapters untested | Only core, Claude, Perplexity have tests |
+| Grok on x.com | Broad `/x\.com/i` match may inject on non-Grok pages |
+| `scripts/generate-icons.mjs` | Not wired to npm scripts |
 
 ---
 
-## 7. File Index
+## 7. Cleanup Changelog (2026-06-28)
+
+**Dead code removed:**
+- `printViaIframe()` + `waitForFonts()` from `export.ts`
+- `removeFab()` from `fab.ts`
+- `AdapterContext` from `adapter.ts`
+- `START_EXPORT` handler from `background.ts`
+- Unused message types/interfaces from `messages.ts`
+- `webextension-polyfill` dependency
+
+**DRY consolidations:**
+- New `src/core/html-utils.ts` with shared `escapeHtml()`
+- `isPasteLabelOnly()` moved to `extract-utils.ts`
+- `extractArtifactTitle()` exported from `claude-hydrate.ts`, used by `claude-extract.ts`
+
+**Config:**
+- Added `https://kimi.com/*` and `https://qwen.ai/*` to host_permissions
+
+**Docs synced:**
+- `readme.md`, `docs/SELECTORS.md`, `docs/PRIVACY.md` updated to match overlay-only, pdfmake-only flow
+
+---
+
+## 8. File Index
 
 ### Priority File Map
 
@@ -607,18 +621,15 @@ ASSUMPTIONS:
 
 1. Architecture is clean and layered; Claude is the outlier requiring special handling.
 2. Core export pipeline (extract → normalize → render → pdfmake) is solid and well-tested for core + Claude.
-3. Major doc/code drift around popup, TOC, and print features.
+3. Cleanup pass (2026-06-28) removed dead code, consolidated DRY helpers, synced docs, fixed host permissions.
 4. Extension is functional for FAB + keyboard + toolbar export on supported pages.
 
-## Next Steps (Recommended, Not Done)
+## Next Steps (Recommended)
 
-1. Either restore popup entrypoint or remove popup references from readme.
-2. Wire `GET_STATUS` / `GET_DIAGNOSTICS` in content script if popup restored.
-3. Align `host_permissions` with content script matches and adapter URL patterns.
-4. Implement TOC or remove from docs/tests expectations.
-5. Remove or wire dead code (`printViaIframe`, `removeFab`, unused message types).
-6. Add adapter tests for remaining 10 platforms.
-7. Remove unused `webextension-polyfill` dependency.
+1. Restore popup UI if options/diagnostics editing is needed outside overlay.
+2. Add adapter tests for remaining 10 platforms.
+3. Fix `generateFilename()` `{count}` to use filtered message count.
+4. Remove unused `webextension-polyfill` — done in cleanup pass.
 
 ---
 

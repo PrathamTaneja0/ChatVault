@@ -202,6 +202,11 @@ export function isArtifactLabelOnly(content: string, title?: string): boolean {
   return false;
 }
 
+export function isPasteLabelOnly(content: string): boolean {
+  const trimmed = content.trim();
+  return trimmed === 'PASTED' || (trimmed.length < 25 && !trimmed.includes('\n') && !trimmed.startsWith('#'));
+}
+
 /** Drop elements nested inside another matched message node. */
 export function filterNestedMessageElements(elements: Element[]): Element[] {
   return elements.filter(

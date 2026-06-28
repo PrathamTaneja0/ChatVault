@@ -3,6 +3,7 @@ import {
   cloneContentWithoutExcluded,
   generateId,
   isArtifactLabelOnly,
+  isPasteLabelOnly,
   sleep,
   sortElementsByDomOrder,
 } from '../core/extract-utils';
@@ -11,7 +12,8 @@ import {
   cacheKeyForArtifact,
   cacheKeyForPaste,
   createDownloadFileCapture,
-  fetchDownloadAfterClick,
+  extractArtifactTitle,
+  fetchArtifactContentFallback,
   findArtifactPanel,
   findArtifactPanelForTitle,
   findArtifactTitleNode,
@@ -269,19 +271,6 @@ function findClickableArtifactTarget(card: HTMLElement): HTMLElement {
   return findViewArtifactButton(card);
 }
 
-function extractArtifactTitle(card: Element): string {
-  return (
-    card.querySelector('[class*="title"], .line-clamp-1, h1, h2, h3')?.textContent?.trim() ||
-    card.getAttribute('aria-label')?.replace(/^View\s+/i, '') ||
-    card.textContent?.split('\n')[0]?.trim() ||
-    'Generated document'
-  )
-    .replace(/Document\s*·.*$/i, '')
-    .replace(/Spreadsheet\s*·.*$/i, '')
-    .trim()
-    .slice(0, 120);
-}
-
 function extractVisibleArtifactBody(card: Element): string {
   const pre = card.querySelector('pre, code, .standard-markdown, .progressive-markdown');
   if (pre?.textContent?.trim() && !isArtifactLabelOnly(pre.textContent.trim())) {
@@ -379,9 +368,7 @@ async function openArtifactPanelAndRead(
       'button[aria-label*="Download"], button[aria-label*="download"]',
     );
     if (downloadBtn instanceof HTMLElement) {
-      downloadBtn.click();
-      await sleep(300, signal);
-      const downloaded = await fetchDownloadAfterClick(capture, signal);
+      const downloaded = await fetchArtifactContentFallback(title, downloadBtn, capture, signal);
       if (downloaded.length > 80) return downloaded;
     }
 
@@ -433,11 +420,6 @@ export async function extractClaudeAssistantArtifacts(
   }
 
   return attachments;
-}
-
-function isPasteLabelOnly(content: string): boolean {
-  const trimmed = content.trim();
-  return trimmed === 'PASTED' || (trimmed.length < 25 && !trimmed.includes('\n') && !trimmed.startsWith('#'));
 }
 
 /** Read truncated preview from file-thumbnail before UI_EXCLUDE strips the button. */

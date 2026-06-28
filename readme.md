@@ -15,7 +15,7 @@ Export AI chat conversations from **12 platforms** to beautifully formatted PDF 
 | P1 | Copilot | copilot.microsoft.com |
 | P1 | Poe | poe.com |
 | P1 | Kimi | kimi.moonshot.cn, kimi.com |
-| P1 | Qwen | chat.qwen.ai |
+| P1 | Qwen | chat.qwen.ai, qwen.ai |
 | P1 | NotebookLM | notebooklm.google.com |
 | P1 | Google AI Studio | aistudio.google.com |
 
@@ -33,18 +33,17 @@ Load the extension in Chrome: `chrome://extensions` → Developer mode → Load 
 ## Usage
 
 1. Open a supported AI chat page
-2. Click the floating **Export** button (bottom-right) or press **Ctrl+Shift+E**
+2. Click the floating **Export** button (bottom-right), press **Ctrl+Shift+E**, or click the toolbar icon
 3. Wait for extraction (scroll sweep loads lazy messages)
-4. Preview the formatted document in the overlay
-5. **Download PDF** (HTML-rendered via pdfmake, same layout as preview)
+4. Preview the conversation in the overlay (JSON or PDF view)
+5. **Copy JSON** or **Download PDF**
 
 ## Architecture
 
 ```
 src/
 ├── entrypoints/
-│   ├── background.ts          # Service worker: keyboard shortcut routing
-│   ├── popup/                 # Extension popup (options + diagnostics)
+│   ├── background.ts          # Service worker: toolbar icon + keyboard shortcut routing
 │   └── content/               # Content script: FAB + export orchestration
 ├── adapters/                  # Platform-specific DOM extractors (12 total)
 │   ├── base.ts                # Shared adapter factory
@@ -55,8 +54,9 @@ src/
 │   ├── registry.ts            # Adapter registration & lookup
 │   ├── normalize.ts           # HTML→markdown, filename helpers
 │   ├── extract-utils.ts       # Scroll sweep, circuit breaker, timeouts
+│   ├── html-utils.ts          # Shared HTML escaping
 │   ├── render.ts              # HTML renderer (marked + highlight.js)
-│   ├── export.ts              # Print iframe + pdfmake download
+│   ├── export.ts              # pdfmake PDF + JSON export
 │   ├── storage.ts             # chrome.storage.local for options
 │   └── messages.ts            # Extension message types
 ├── ui/
@@ -71,7 +71,7 @@ src/
 
 ```mermaid
 flowchart TD
-    A[User clicks FAB or Ctrl+Shift+E] --> B[Content script]
+    A[User clicks FAB, toolbar icon, or Ctrl+Shift+E] --> B[Content script]
     B --> C{Adapter matches URL?}
     C -->|No| D[Alert: unsupported]
     C -->|Yes| E[Show overlay + progress]
@@ -79,9 +79,9 @@ flowchart TD
     F --> G[Scroll sweep / virtual scroll]
     G --> H[Parse DOM → Message array]
     H --> I[Dedupe + circuit breaker check]
-    I --> J[Render HTML preview]
+    I --> J[Render preview in overlay]
     J --> K{User action}
-    K -->|Print| L[Hidden iframe + window.print]
+    K -->|Copy JSON| L[Copy to clipboard]
     K -->|Download| M[Lazy-load pdfmake → download]
     K -->|Cancel/Esc| N[Abort + cleanup]
 ```
@@ -101,9 +101,8 @@ flowchart TD
 
 1. **Filter** – apply thinking toggle and optional message selection
 2. **Conversation title** – thread name as inline header on page 1
-3. **TOC** – auto-generated when >10 messages
-4. **Messages** – markdown rendered via marked with syntax highlighting
-5. **Print CSS** – inlined A4 layout with role colors and page numbers
+3. **Messages** – markdown rendered via marked with syntax highlighting
+4. **Print CSS** – inlined A4 layout with role colors and page numbers
 
 ### PDF Export
 
@@ -114,20 +113,20 @@ flowchart TD
 ## PDF Layout
 
 - **Page size:** A4
-- **Fonts:** Inter (body), JetBrains Mono (code)
+- **Fonts:** Inter (body), JetBrains Mono (code) in preview; Roboto in PDF download
 - **User messages:** Indigo accent `#4F46E5`
 - **Assistant messages:** Emerald accent `#059669`
 - **Reasoning/thinking:** Gray italic
 - **Code blocks:** `#f4f4f8` background with highlight.js syntax colors
 - **Footer:** Page numbers
 
-## Configuration (Popup)
+## Configuration (Overlay)
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| Include thinking chains | ✓ | Export reasoning/thinking blocks |
-| Table of contents | ✓ | Auto TOC when >10 messages |
-| Filename template | `ChatVault_{title}` | Variables: `{platform}`, `{title}`, `{date}`, `{model}`, `{count}` |
+| Include thinking chains | ✓ | Export reasoning/thinking blocks (toggle in overlay) |
+| Message selection | All | Select individual turns in overlay sidebar |
+| Filename template | `ChatVault_{title}` | Stored in `chrome.storage.local`; variables: `{platform}`, `{title}`, `{date}`, `{model}`, `{count}` |
 
 ## Circuit Breaker
 
@@ -137,7 +136,7 @@ flowchart TD
 
 ## Selector Diagnostics
 
-The popup shows live selector match status for the current page. See [docs/SELECTORS.md](docs/SELECTORS.md) for full selector reference.
+Platform adapters expose `getSelectorDiagnostics()` for development verification. See [docs/SELECTORS.md](docs/SELECTORS.md) for full selector reference.
 
 ## Privacy
 
@@ -149,7 +148,11 @@ All processing is local. No data leaves your browser. See [docs/PRIVACY.md](docs
 npm test
 ```
 
-Tests cover: schema types, message deduplication, filename templates, slugify, and turndown HTML→markdown conversion.
+Test suites (62 tests total):
+
+- **core.test.ts** (36) – schema, dedupe, normalize, render, export, attachments
+- **claude.test.ts** (25) – Claude adapter, hydration, paste/artifact extraction
+- **perplexity.test.ts** (1) – Perplexity role detection
 
 ## Development
 
@@ -158,12 +161,12 @@ Tests cover: schema types, message deduplication, filename templates, slugify, a
 1. Create `src/adapters/myplatform.ts` using `createBaseAdapter()`
 2. Define fallback selector chains
 3. Register in `src/adapters/index.ts`
-4. Add URL to content script matches and manifest host_permissions
+4. Add URL to content script matches and manifest host_permissions in `wxt.config.ts`
 5. Document selectors in `docs/SELECTORS.md`
 
 ### Updating Selectors
 
-When a platform changes its DOM, add new selectors **earlier** in the fallback array. Use popup diagnostics to verify matches.
+When a platform changes its DOM, add new selectors **earlier** in the fallback array. Use adapter `getSelectorDiagnostics()` to verify matches.
 
 ## License
 
