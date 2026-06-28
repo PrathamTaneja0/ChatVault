@@ -201,6 +201,65 @@ describe('preview render CSS', () => {
   });
 });
 
+describe('renderConversationHtml', () => {
+  const baseConversation = {
+    metadata: {
+      title: 'Test Chat',
+      platform: 'gemini',
+      platformLabel: 'Gemini',
+      url: 'https://example.com',
+      exportedAt: '2026-06-28T00:00:00.000Z',
+      messageCount: 2,
+    },
+    messages: [
+      { id: '1', role: 'user' as const, content: 'Question' },
+      { id: '2', role: 'assistant' as const, content: 'Answer text' },
+    ],
+  };
+
+  it('applies role label classes for heading-only styling', () => {
+    const html = renderConversationHtml(baseConversation, DEFAULT_EXPORT_OPTIONS);
+    expect(html).toContain('message-role message-role-user');
+    expect(html).toContain('message-role message-role-assistant');
+  });
+
+  it('styles message body text in black', () => {
+    const html = renderConversationHtml(baseConversation, DEFAULT_EXPORT_OPTIONS);
+    expect(html).toContain('.message-body');
+    expect(html).toContain('color: #000000');
+  });
+
+  it('does not render a table of contents even with many messages', () => {
+    const messages = Array.from({ length: 12 }, (_, i) => ({
+      id: String(i + 1),
+      role: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
+      content: `Message ${i + 1}`,
+    }));
+    const html = renderConversationHtml(
+      { ...baseConversation, messages, metadata: { ...baseConversation.metadata, messageCount: 12 } },
+      DEFAULT_EXPORT_OPTIONS,
+    );
+    expect(html).not.toContain('Table of Contents');
+    expect(html).not.toContain('class="toc"');
+  });
+
+  it('excludes thinking messages when includeThinking is false', () => {
+    const html = renderConversationHtml(
+      {
+        ...baseConversation,
+        messages: [
+          { id: '1', role: 'user', content: 'Hi' },
+          { id: '2', role: 'reasoning', content: 'Thinking…', isThinking: true },
+          { id: '3', role: 'assistant', content: 'Hello' },
+        ],
+      },
+      { ...DEFAULT_EXPORT_OPTIONS, includeThinking: false },
+    );
+    expect(html).not.toContain('message-role-reasoning');
+    expect(html).toContain('message-role-assistant');
+  });
+});
+
 describe('stripPlatformPrefixes', () => {
   it('removes Gemini "You said" prefix', () => {
     expect(stripPlatformPrefixes('You said hello world')).toBe('hello world');
