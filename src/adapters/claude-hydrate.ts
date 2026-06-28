@@ -1,5 +1,6 @@
 import type { ProgressCallback } from '../core/adapter';
 import { isArtifactLabelOnly, sleep, sortElementsByDomOrder } from '../core/extract-utils';
+import { fetchArtifactViaWiggleApi, resetClaudeWiggleCache } from './claude-wiggle';
 
 const HYDRATE_POLL_MS = [150, 200, 250, 300, 350, 400, 450, 500];
 const PASTE_HYDRATE_POLL_MS = [150, 200, 250, 300, 400, 500, 600, 800, 1000, 1200];
@@ -46,6 +47,7 @@ const ARTIFACT_BODY_SELECTORS = [
 ];
 
 const PAGE_FETCH_CAPTURE_ATTR = 'data-chatvault-fetch-capture';
+const PAGE_DOWNLOAD_BLOCK_ATTR = 'data-chatvault-download-block';
 const DOWNLOAD_FILE_EVENT = 'chatvault-download-file';
 
 export function normalizeCacheKey(key: string): string {
@@ -704,6 +706,127 @@ export async function fetchClaudeDownloadFile(pathOrUrl: string): Promise<string
   }
 }
 
+function isDownloadFileUrl(url: string): boolean {
+  return url.includes('download-file');
+}
+
+function normalizeDownloadFileUrl(href: string): string | undefined {
+  if (!href || href.startsWith('blob:') || href.startsWith('javascript:')) return undefined;
+  try {
+    const url = href.startsWith('http') ? href : new URL(href, window.location.origin).href;
+    return isDownloadFileUrl(url) ? url : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Look for a Claude download-file URL on/near the artifact download control. */
+export function findDownloadFileUrlNearButton(button: HTMLElement): string | undefined {
+  const roots = [button, button.closest('[class*="artifact"]'), button.closest('[data-testid="artifact-card"]')];
+  for (const root of roots) {
+    if (!(root instanceof HTMLElement)) continue;
+    for (const attr of ['data-url', 'data-href', 'data-download-url', 'href']) {
+      const value = root.getAttribute(attr);
+      const url = value ? normalizeDownloadFileUrl(value) : undefined;
+      if (url) return url;
+    }
+    for (const anchor of root.querySelectorAll('a[href*="download-file"]')) {
+      if (anchor instanceof HTMLAnchorElement) {
+        const url = normalizeDownloadFileUrl(anchor.href);
+        if (url) return url;
+      }
+    }
+  }
+  return undefined;
+}
+
+function installPageWorldDownloadBlocker(): void {
+  const root = document.documentElement;
+  if (root.getAttribute(PAGE_DOWNLOAD_BLOCK_ATTR) === '1') return;
+  root.setAttribute(PAGE_DOWNLOAD_BLOCK_ATTR, '1');
+
+  const script = document.createElement('script');
+  script.textContent = `
+(function() {
+  if (window.__chatVaultDownloadBlockInstalled) return;
+  window.__chatVaultDownloadBlockInstalled = true;
+
+  var origAnchorClick = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function() {
+    if (this.hasAttribute('download') || (this.href && this.href.indexOf('blob:') === 0)) return;
+    return origAnchorClick.call(this);
+  };
+
+  document.addEventListener('click', function(event) {
+    var node = event.target;
+    while (node) {
+      if (node.tagName === 'A') {
+        var href = node.href || '';
+        if (node.hasAttribute('download') || href.indexOf('blob:') === 0) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          return;
+        }
+      }
+      node = node.parentElement;
+    }
+  }, true);
+})();
+  `.trim();
+  (document.head || document.documentElement).appendChild(script);
+  script.remove();
+}
+
+function installNativeDownloadBlocker(): () => void {
+  installPageWorldDownloadBlocker();
+  return () => {};
+}
+
+/**
+ * Last-resort artifact fetch: wiggle API, then intercepted network capture.
+ * Never triggers a browser save dialog.
+ */
+export async function fetchArtifactContentFallback(
+  title: string,
+  downloadBtn: HTMLElement | null,
+  capture: DownloadFileCapture,
+  signal?: AbortSignal,
+): Promise<string> {
+  const fromWiggle = await fetchArtifactViaWiggleApi(title, signal);
+  if (fromWiggle.length >= MIN_ARTIFACT_BODY_LEN) return fromWiggle;
+
+  const fromCapture = await fetchDownloadAfterClick(capture, signal);
+  if (fromCapture.length >= MIN_ARTIFACT_BODY_LEN) return fromCapture;
+
+  if (downloadBtn) {
+    const knownUrl = findDownloadFileUrlNearButton(downloadBtn);
+    if (knownUrl) {
+      const direct = await fetchClaudeDownloadFile(knownUrl);
+      if (direct.length >= MIN_ARTIFACT_BODY_LEN) return direct;
+    }
+  }
+
+  if (!downloadBtn) return '';
+
+  const restoreDownloads = installNativeDownloadBlocker();
+  const preventNativeClick = (event: Event): void => {
+    event.preventDefault();
+  };
+
+  try {
+    downloadBtn.addEventListener('click', preventNativeClick, true);
+    downloadBtn.click();
+    downloadBtn.removeEventListener('click', preventNativeClick, true);
+    await sleep(300, signal);
+    return await fetchDownloadAfterClick(capture, signal);
+  } finally {
+    restoreDownloads();
+  }
+}
+
+/** @deprecated Use fetchArtifactContentFallback */
+export const fetchArtifactViaDownloadButton = fetchArtifactContentFallback;
+
 export interface DownloadFileCapture {
   install(): void;
   uninstall(): void;
@@ -932,7 +1055,7 @@ async function readArtifactPanelContent(
   return copyContent.length > dom.length ? copyContent : dom;
 }
 
-function extractArtifactTitleFromCard(card: Element): string {
+export function extractArtifactTitle(card: Element): string {
   return (
     card.querySelector('[class*="title"], .line-clamp-1, h1, h2, h3')?.textContent?.trim() ||
     card.getAttribute('aria-label')?.replace(/^View\s+/i, '') ||
@@ -956,7 +1079,7 @@ async function hydrateArtifactCard(
 
   await dismissPasteContentPanel(document, signal);
 
-  const title = extractArtifactTitleFromCard(card);
+  const title = extractArtifactTitle(card);
   let content = '';
 
   try {
@@ -991,9 +1114,7 @@ async function hydrateArtifactCard(
           'button[aria-label*="Download"], button[aria-label*="download"]',
         );
         if (downloadBtn instanceof HTMLElement) {
-          downloadBtn.click();
-          await sleep(300, signal);
-          const downloaded = await fetchDownloadAfterClick(capture, signal);
+          const downloaded = await fetchArtifactContentFallback(title, downloadBtn, capture, signal);
           if (downloaded.length > content.length) content = downloaded;
         }
       }
@@ -1014,6 +1135,9 @@ export async function preExtractHydration(
   const capture = createDownloadFileCapture();
 
   try {
+    resetClaudeWiggleCache();
+    installPageWorldDownloadBlocker();
+
     const pasteButtons = findAllPasteThumbnailButtons(document);
     for (let i = 0; i < pasteButtons.length; i++) {
       if (signal?.aborted) break;
@@ -1039,7 +1163,7 @@ export async function preExtractHydration(
         percent: 45 + Math.round((i / Math.max(artifactCards.length, 1)) * 10),
       });
 
-      const title = extractArtifactTitleFromCard(artifactCards[i]);
+      const title = extractArtifactTitle(artifactCards[i]);
       const content = await hydrateArtifactCard(artifactCards[i], document, capture, signal);
       if (content) cache.set(cacheKeyForArtifact(title), content);
     }

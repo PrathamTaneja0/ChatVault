@@ -12,7 +12,8 @@ import markdown from 'highlight.js/lib/languages/markdown';
 import type { Attachment, AttachmentKind, Conversation, ExportOptions, Message } from './schema';
 import { filterMessages } from './adapter';
 import { normalizeContent, formatDate, roleCssClass, roleLabel } from './normalize';
-import { isArtifactLabelOnly } from './extract-utils';
+import { isArtifactLabelOnly, isPasteLabelOnly } from './extract-utils';
+import { escapeHtml } from './html-utils';
 import printCss from '../assets/print.css?raw';
 
 hljs.registerLanguage('javascript', javascript);
@@ -67,11 +68,6 @@ function contentIncludesAttachment(mainContent: string, att: Attachment): boolea
   return main.includes(attNorm.slice(0, Math.min(120, attNorm.length)));
 }
 
-function isPasteLabelOnly(content: string): boolean {
-  const trimmed = content.trim();
-  return trimmed === 'PASTED' || (trimmed.length < 25 && !trimmed.includes('\n') && !trimmed.startsWith('#'));
-}
-
 function shouldRenderAttachment(att: Attachment, mainContent: string): boolean {
   if (att.kind === 'paste') {
     if (isPasteLabelOnly(att.content)) return false;
@@ -122,14 +118,6 @@ function renderMessageHtml(msg: Message, index: number): string {
       <div class="message-body">${bodyHtml}</div>
     </section>
   `;
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 function renderConversationTitle(title: string): string {

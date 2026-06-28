@@ -101,7 +101,3 @@ export function createFab(onClick: () => void): HTMLElement {
 
   return fab;
 }
-
-export function removeFab(fab: HTMLElement): void {
-  fab.remove();
-}

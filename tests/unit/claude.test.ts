@@ -6,6 +6,9 @@ import {
   HydratedContentCache,
   cacheKeyForArtifact,
   cacheKeyForPaste,
+  createDownloadFileCapture,
+  fetchArtifactContentFallback,
+  findDownloadFileUrlNearButton,
   findPasteContentPanel,
   findViewArtifactButton,
   isClaudeChatStreamTurn,
@@ -328,6 +331,67 @@ describe('claudeAdapter', () => {
     const conversation = await promise;
 
     expect(conversation.messages[1].attachments?.[0]?.content).toContain('Thomas Meyer');
+  });
+
+  it('blocks native anchor downloads while fetching artifact via Download button', async () => {
+    const downloadUrl = 'https://claude.ai/api/download-file?path=hilti.md';
+    const originalFetch = globalThis.fetch.bind(globalThis);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('download-file')) {
+        return {
+          ok: true,
+          clone: () => ({ text: async () => FULL_ARTIFACT }),
+          text: async () => FULL_ARTIFACT,
+        };
+      }
+      return originalFetch(input);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    document.body.innerHTML = `
+      <div class="group/artifact-block">
+        <div class="artifact-block-cell" data-testid="artifact-card">
+          <button aria-label="Download Hilti vapi prompt deutsch">Download</button>
+        </div>
+      </div>
+    `;
+
+    const downloadBtn = document.querySelector('button[aria-label*="Download"]') as HTMLElement;
+    let anchorClicked = false;
+    downloadBtn.addEventListener('click', () => {
+      void window.fetch(downloadUrl);
+      const anchor = document.createElement('a');
+      anchor.href = 'blob:text/plain,blocked';
+      anchor.download = 'hilti.md';
+      anchor.addEventListener('click', () => {
+        anchorClicked = true;
+      });
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    });
+
+    const capture = createDownloadFileCapture();
+    capture.install();
+    const promise = fetchArtifactContentFallback('Hilti vapi prompt deutsch', downloadBtn, capture);
+    await vi.runAllTimersAsync();
+    const content = await promise;
+    capture.uninstall();
+
+    expect(content).toContain('Thomas Meyer');
+    expect(anchorClicked).toBe(false);
+  });
+
+  it('prefers download-file URL from artifact card markup', () => {
+    document.body.innerHTML = `
+      <div class="artifact-block-cell" data-testid="artifact-card">
+        <a href="/api/download-file?path=hilti.md">Download</a>
+        <button aria-label="Download Hilti vapi prompt deutsch">Download</button>
+      </div>
+    `;
+    const downloadBtn = document.querySelector('button[aria-label*="Download"]') as HTMLElement;
+    expect(findDownloadFileUrlNearButton(downloadBtn)).toContain('/api/download-file?path=hilti.md');
   });
 
   it('uses hydrated cache for truncated paste thumbnail preview', async () => {

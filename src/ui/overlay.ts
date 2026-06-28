@@ -5,6 +5,7 @@ import { normalizeContent, roleLabel } from '../core/normalize';
 import { createProgressBar, progressStyles } from './progress';
 import { buildExportDocument, buildExportJson, silentDownload } from '../core/export';
 import { saveOptions } from '../core/storage';
+import { escapeHtml } from '../core/html-utils';
 
 export interface OverlayCallbacks {
   onDownload: (conversation: Conversation, options: ExportOptions) => Promise<void>;
@@ -863,14 +864,6 @@ export class ExportOverlay {
       first.focus();
     }
   }
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 function truncatePreview(text: string, maxLen: number): string {

@@ -9,18 +9,6 @@ export default defineBackground(() => {
     if (command !== 'export-chat') return;
     await triggerExportOnActiveTab();
   });
-
-  browser.runtime.onMessage.addListener(
-    (message: ExtensionMessage, _sender, sendResponse) => {
-      if (message.type === 'START_EXPORT') {
-        handleStartExport(message.payload as { tabId: number })
-          .then(sendResponse)
-          .catch((err) => sendResponse({ error: String(err) }));
-        return true;
-      }
-      return false;
-    },
-  );
 });
 
 async function triggerExportOnActiveTab(): Promise<void> {
@@ -34,8 +22,4 @@ async function triggerExportOnActiveTab(): Promise<void> {
   } catch {
     /* content script not loaded on this tab */
   }
-}
-
-async function handleStartExport(payload: { tabId: number }): Promise<unknown> {
-  return browser.tabs.sendMessage(payload.tabId, { type: 'TRIGGER_EXPORT' });
 }

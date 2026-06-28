@@ -52,46 +52,6 @@ export function generateFilename(
   return `${base}.pdf`;
 }
 
-export async function printViaIframe(html: string): Promise<void> {
-  const iframe = document.createElement('iframe');
-  iframe.style.cssText =
-    'position:fixed;right:0;bottom:0;width:0;height:0;border:none;';
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
-  if (!doc) throw new Error('Could not access iframe document');
-
-  doc.open();
-  doc.write(html);
-  doc.close();
-
-  await waitForFonts(doc);
-
-  return new Promise((resolve, reject) => {
-    iframe.contentWindow?.addEventListener('afterprint', () => {
-      document.body.removeChild(iframe);
-      resolve();
-    });
-
-    try {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-    } catch (err) {
-      document.body.removeChild(iframe);
-      reject(err);
-    }
-  });
-}
-
-async function waitForFonts(doc: Document): Promise<void> {
-  await new Promise((r) => setTimeout(r, 500));
-  try {
-    await (doc as Document & { fonts?: FontFaceSet }).fonts?.ready;
-  } catch {
-    /* fonts API unavailable */
-  }
-}
-
 export function extractMainHtml(html: string): string {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');

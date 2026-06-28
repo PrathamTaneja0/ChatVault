@@ -17,12 +17,10 @@
     "marked": "^15.0.7",
     "marked-highlight": "^2.2.1",
     "pdfmake": "^0.2.18",
-    "turndown": "^7.2.0",
-    "webextension-polyfill": "^0.12.0"
+    "turndown": "^7.2.0"
   },
   "devDependencies": {
     "@types/turndown": "^5.0.5",
-    "@types/webextension-polyfill": "^0.12.1",
     "jsdom": "^29.1.1",
     "typescript": "^5.8.2",
     "vitest": "^3.0.9",

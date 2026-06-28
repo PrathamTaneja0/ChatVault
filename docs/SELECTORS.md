@@ -66,7 +66,9 @@ Diagnostics report separate counts for user and assistant message selectors.
 
 | Field | Selectors |
 |---|---|
-| message | `[data-testid="user-message"]`, `[data-testid="assistant-message"]` |
+| user turn | `div[class*="group/query"]`, `[data-testid="user-message"]` |
+| assistant turn | `div[id^="markdown-content-"]`, `[data-testid="assistant-message"]` |
+| content | `.prose`, `.markdown-content`, `.break-words`, `span.select-text` |
 
 ## P1 Platforms
 
@@ -88,7 +90,7 @@ Diagnostics report separate counts for user and assistant message selectors.
 |---|---|
 | message | `[data-testid="message"]`, `.message-item` |
 
-### Qwen (`chat.qwen.ai`)
+### Qwen (`chat.qwen.ai`, `qwen.ai`)
 
 | Field | Selectors |
 |---|---|
@@ -113,8 +115,8 @@ When a platform changes its DOM structure:
 1. Open the platform in Chrome DevTools
 2. Identify new message container/turn selectors
 3. Add them as **earlier** entries in the fallback chain (in the adapter file under `src/adapters/`)
-4. Run selector diagnostics from the extension popup to verify matches
+4. Run adapter `getSelectorDiagnostics()` on the page to verify matches
 
 ## Diagnostics
 
-The popup shows live selector match counts for the current page. A ✓ with count > 0 means the selector matched elements.
+Adapters expose `getSelectorDiagnostics()` which returns selector match counts for the current page. A result with `found: true` and `count > 0` means the selector matched elements.

@@ -13,7 +13,7 @@ ChatVault Export is a browser extension that extracts chat conversations from AI
 All processing happens entirely within your browser:
 
 - Chat content is read from the DOM of the page you are viewing
-- PDF generation runs locally using your browser's print engine or pdfmake
+- PDF generation runs locally using pdfmake
 - Export preferences are stored in `chrome.storage.local` on your device only
 
 ## Permissions Explained
@@ -33,7 +33,7 @@ When rendering PDF previews, the extension may load:
 - **Google Fonts** (Inter, JetBrains Mono) for typography
 - **highlight.js CDN** for syntax highlighting styles
 
-These are loaded only during export preview/print and do not transmit your chat content.
+These are loaded only during export preview and do not transmit your chat content.
 
 ## Data Retention
 
