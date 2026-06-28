@@ -3,7 +3,9 @@ import type { ExtractionProgress } from '../core/adapter';
 import { getSelectableMessages } from '../core/adapter';
 import { normalizeContent, roleLabel } from '../core/normalize';
 import { createProgressBar, progressStyles } from './progress';
-import { buildExportDocument, silentDownload } from '../core/export';
+import { buildExportDocument, silentDownload, generateFilename } from '../core/export';
+import { DEFAULT_EXPORT_OPTIONS } from '../core/schema';
+import { saveOptions } from '../core/storage';
 
 export interface OverlayCallbacks {
   onDownload: (conversation: Conversation, options: ExportOptions) => Promise<void>;
@@ -120,6 +122,59 @@ const OVERLAY_STYLES = `
   }
   .cv-toggle-sidebar {
     font-weight: 500;
+  }
+  .cv-export-options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px 24px;
+    padding: 10px 16px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #fff;
+    flex-shrink: 0;
+  }
+  .cv-export-options label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #374151;
+    cursor: pointer;
+  }
+  .cv-export-options input[type="checkbox"] {
+    cursor: pointer;
+  }
+  .cv-filename-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 200px;
+  }
+  .cv-filename-field span {
+    font-size: 13px;
+    color: #6b7280;
+    white-space: nowrap;
+  }
+  .cv-filename-field input {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #111827;
+  }
+  .cv-filename-field input:focus {
+    outline: none;
+    border-color: #4F46E5;
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.15);
+  }
+  .cv-filename-hint {
+    font-size: 11px;
+    color: #9ca3af;
+    width: 100%;
+    margin: -4px 0 0;
   }
   .cv-preview-layout {
     display: flex;
@@ -336,6 +391,17 @@ export class ExportOverlay {
           <button type="button" data-action="select-none">Deselect all</button>
         </div>
       </div>
+      <div class="cv-export-options" data-export-options>
+        <label>
+          <input type="checkbox" data-opt-thinking checked />
+          Include thinking/reasoning chains
+        </label>
+        <div class="cv-filename-field">
+          <span>Filename template</span>
+          <input type="text" data-opt-filename value="ChatVault_{title}" placeholder="ChatVault_{title}" />
+        </div>
+        <p class="cv-filename-hint" data-filename-hint></p>
+      </div>
       <div class="cv-preview-layout">
         <div class="cv-message-sidebar" data-sidebar></div>
         <div class="cv-preview-column">
@@ -375,6 +441,8 @@ export class ExportOverlay {
       this.updateSelectionUi();
     });
 
+    this.bindExportOptions(conversation);
+
     this.renderSidebar(selectable);
     this.refreshPreview();
     this.updateSelectionUi();
@@ -399,6 +467,53 @@ export class ExportOverlay {
 
     const panel = this.shadow!.querySelector('.cv-overlay-panel') as HTMLElement;
     this.trapFocus(panel);
+  }
+
+  private bindExportOptions(conversation: Conversation): void {
+    if (!this.shadow || !this.baseOptions) return;
+
+    const thinkingInput = this.shadow.querySelector('[data-opt-thinking]') as HTMLInputElement;
+    const filenameInput = this.shadow.querySelector('[data-opt-filename]') as HTMLInputElement;
+    const hintEl = this.shadow.querySelector('[data-filename-hint]');
+
+    thinkingInput.checked = this.baseOptions.includeThinking;
+    filenameInput.value =
+      this.baseOptions.filenameTemplate ?? DEFAULT_EXPORT_OPTIONS.filenameTemplate ?? 'ChatVault_{title}';
+
+    const updateHint = () => {
+      if (!hintEl || !this.baseOptions) return;
+      const opts = this.getExportOptions() ?? this.baseOptions;
+      const filename = generateFilename(conversation, opts);
+      hintEl.textContent = `Preview: ${filename} · vars: {platform}, {title}, {date}, {model}, {count}`;
+    };
+    updateHint();
+
+    const persistAndRefresh = async () => {
+      if (!this.baseOptions || !this.conversation) return;
+      this.baseOptions = {
+        ...this.baseOptions,
+        includeThinking: thinkingInput.checked,
+        filenameTemplate: filenameInput.value || DEFAULT_EXPORT_OPTIONS.filenameTemplate,
+      };
+      await saveOptions(this.baseOptions);
+
+      const selectable = getSelectableMessages(this.conversation.messages, this.baseOptions);
+      this.selectedIds = new Set(
+        [...this.selectedIds].filter((id) => selectable.some((m) => m.id === id)),
+      );
+      if (this.selectedIds.size === 0 && selectable.length > 0) {
+        this.selectedIds = new Set(selectable.map((m) => m.id));
+      }
+
+      this.renderSidebar(selectable);
+      this.refreshPreview();
+      this.updateSelectionUi();
+      updateHint();
+    };
+
+    thinkingInput.addEventListener('change', () => void persistAndRefresh());
+    filenameInput.addEventListener('change', () => void persistAndRefresh());
+    filenameInput.addEventListener('input', updateHint);
   }
 
   private getExportOptions(): ExportOptions | null {
