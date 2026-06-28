@@ -2,7 +2,17 @@ import { describe, it, expect } from 'vitest';
 import type { Message } from '../../src/core/schema';
 import { dedupeMessages, filterMessages, getSelectableMessages } from '../../src/core/adapter';
 import { DEFAULT_EXPORT_OPTIONS } from '../../src/core/schema';
-import { applyFilenameTemplate, slugify, getTurndown } from '../../src/core/normalize';
+import { generateFilename } from '../../src/core/export';
+import { queryAllMerged } from '../../src/core/extract-utils';
+import {
+  applyFilenameTemplate,
+  normalizeContent,
+  resolveConversationTitle,
+  sanitizeFilenamePart,
+  slugify,
+  stripPlatformPrefixes,
+  getTurndown,
+} from '../../src/core/normalize';
 
 describe('schema', () => {
   it('creates valid message objects', () => {
@@ -84,6 +94,83 @@ describe('dedupeMessages', () => {
       { id: '2', role: 'assistant', content: 'B' },
     ];
     expect(dedupeMessages(messages)).toHaveLength(2);
+  });
+});
+
+describe('queryAllMerged', () => {
+  it('merges multiple selectors in DOM order without duplicates', () => {
+    document.body.innerHTML = `
+      <div id="root">
+        <user-query>u1</user-query>
+        <model-response>a1</model-response>
+        <user-query>u2</user-query>
+      </div>
+    `;
+    const root = document.getElementById('root')!;
+    const els = queryAllMerged(root, ['user-query', 'model-response']);
+    expect(els).toHaveLength(3);
+    expect(els[0].tagName.toLowerCase()).toBe('user-query');
+    expect(els[1].tagName.toLowerCase()).toBe('model-response');
+    expect(els[2].tagName.toLowerCase()).toBe('user-query');
+  });
+});
+
+describe('resolveConversationTitle', () => {
+  it('skips generic placeholders and uses document title', () => {
+    const result = resolveConversationTitle(
+      ['Conversation with', 'ADHD and Housing - Google Gemini'],
+      'Gemini',
+    );
+    expect(result).toBe('ADHD and Housing');
+  });
+
+  it('falls back to first user message snippet', () => {
+    const result = resolveConversationTitle(
+      ['Conversation with', 'New chat'],
+      'Gemini',
+    );
+    expect(result).toBe('Conversation with');
+  });
+});
+
+describe('stripPlatformPrefixes', () => {
+  it('removes Gemini "You said" prefix', () => {
+    expect(stripPlatformPrefixes('You said hello world')).toBe('hello world');
+  });
+});
+
+describe('normalizeContent', () => {
+  it('strips platform prefix from plain content', () => {
+    const msg: Message = { id: '1', role: 'user', content: 'You said https://example.com' };
+    expect(normalizeContent(msg)).toBe('https://example.com');
+  });
+});
+
+describe('sanitizeFilenamePart', () => {
+  it('keeps readable words with underscores', () => {
+    expect(sanitizeFilenamePart('ADHD and University Housing')).toBe(
+      'ADHD_and_University_Housing',
+    );
+  });
+});
+
+describe('generateFilename', () => {
+  it('uses ChatVault_{title} default template', () => {
+    const filename = generateFilename(
+      {
+        metadata: {
+          title: 'My Chat Thread',
+          platform: 'gemini',
+          platformLabel: 'Gemini',
+          url: 'https://gemini.google.com',
+          exportedAt: '2026-06-28T00:00:00.000Z',
+          messageCount: 2,
+        },
+        messages: [],
+      },
+      DEFAULT_EXPORT_OPTIONS,
+    );
+    expect(filename).toBe('ChatVault_My_Chat_Thread.pdf');
   });
 });
 

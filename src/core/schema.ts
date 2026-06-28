@@ -31,14 +31,12 @@ export interface ExportOptions {
   includeThinking: boolean;
   selectedMessageIds?: string[];
   filenameTemplate?: string;
-  coverPage: boolean;
   tableOfContents: boolean;
 }
 
 export const DEFAULT_EXPORT_OPTIONS: ExportOptions = {
   includeThinking: true,
-  filenameTemplate: '{platform}_{title}_{date}',
-  coverPage: true,
+  filenameTemplate: 'ChatVault_{title}',
   tableOfContents: true,
 };
 

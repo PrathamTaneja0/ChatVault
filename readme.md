@@ -100,7 +100,7 @@ flowchart TD
 ### Rendering Pipeline
 
 1. **Filter** – apply thinking toggle and optional message selection
-2. **Cover page** – title, platform, model, date, count, URL
+2. **Conversation title** – thread name as inline header on page 1
 3. **TOC** – auto-generated when >10 messages
 4. **Messages** – markdown rendered via marked with syntax highlighting
 5. **Print CSS** – inlined A4 layout with role colors and page numbers
@@ -127,9 +127,8 @@ flowchart TD
 | Option | Default | Description |
 |--------|---------|-------------|
 | Include thinking chains | ✓ | Export reasoning/thinking blocks |
-| Cover page | ✓ | Title page with metadata |
 | Table of contents | ✓ | Auto TOC when >10 messages |
-| Filename template | `{platform}_{title}_{date}` | Variables: `{platform}`, `{title}`, `{date}`, `{model}`, `{count}` |
+| Filename template | `ChatVault_{title}` | Variables: `{platform}`, `{title}`, `{date}`, `{model}`, `{count}` |
 
 ## Circuit Breaker
 

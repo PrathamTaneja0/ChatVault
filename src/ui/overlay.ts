@@ -3,16 +3,15 @@ import type { ExtractionProgress } from '../core/adapter';
 import { getSelectableMessages } from '../core/adapter';
 import { normalizeContent, roleLabel } from '../core/normalize';
 import { createProgressBar, progressStyles } from './progress';
-import { buildExportDocument, printViaIframe, silentDownload } from '../core/export';
-
-export type OverlayAction = 'print' | 'download' | 'cancel';
+import { buildExportDocument, silentDownload } from '../core/export';
 
 export interface OverlayCallbacks {
-  onPrint: (conversation: Conversation, options: ExportOptions) => Promise<void>;
   onDownload: (conversation: Conversation, options: ExportOptions) => Promise<void>;
   onCancel: () => void;
   onClose: () => void;
 }
+
+const A4_PREVIEW_WIDTH_PX = 794;
 
 const OVERLAY_STYLES = `
   :host { all: initial; }
@@ -27,27 +26,38 @@ const OVERLAY_STYLES = `
     font-family: 'Inter', system-ui, sans-serif;
   }
   .cv-overlay-panel {
+    position: relative;
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    width: min(1100px, 95vw);
-    max-height: 90vh;
+    width: min(1200px, 96vw);
+    height: min(88vh, 900px);
+    min-width: 720px;
+    min-height: 480px;
+    max-width: 96vw;
+    max-height: 96vh;
+    resize: both;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
   }
   .cv-overlay-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 20px;
+    padding: 14px 20px;
     border-bottom: 1px solid #e5e7eb;
+    flex-shrink: 0;
   }
   .cv-overlay-header h2 {
     margin: 0;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
     color: #111827;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: calc(100% - 48px);
   }
   .cv-overlay-close {
     background: none;
@@ -57,6 +67,7 @@ const OVERLAY_STYLES = `
     color: #6b7280;
     font-size: 20px;
     line-height: 1;
+    flex-shrink: 0;
   }
   .cv-overlay-body {
     flex: 1;
@@ -71,7 +82,7 @@ const OVERLAY_STYLES = `
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 10px 16px;
+    padding: 8px 16px;
     border-bottom: 1px solid #e5e7eb;
     background: #f9fafb;
     flex-shrink: 0;
@@ -84,6 +95,7 @@ const OVERLAY_STYLES = `
   .cv-selection-actions {
     display: flex;
     gap: 8px;
+    align-items: center;
   }
   .cv-selection-actions button {
     font-size: 12px;
@@ -97,6 +109,9 @@ const OVERLAY_STYLES = `
   .cv-selection-actions button:hover {
     background: #f3f4f6;
   }
+  .cv-toggle-sidebar {
+    font-weight: 500;
+  }
   .cv-preview-layout {
     display: flex;
     flex: 1;
@@ -104,11 +119,18 @@ const OVERLAY_STYLES = `
     overflow: hidden;
   }
   .cv-message-sidebar {
-    width: 280px;
+    width: 240px;
     flex-shrink: 0;
     border-right: 1px solid #e5e7eb;
     overflow-y: auto;
     background: #fafafa;
+    transition: width 0.2s, opacity 0.2s;
+  }
+  .cv-message-sidebar.collapsed {
+    width: 0;
+    opacity: 0;
+    overflow: hidden;
+    border-right: none;
   }
   .cv-message-item {
     display: flex;
@@ -155,20 +177,55 @@ const OVERLAY_STYLES = `
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
   }
-  .cv-overlay-preview {
+  .cv-preview-column {
     flex: 1;
-    width: 100%;
-    height: 100%;
-    border: none;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border-left: 1px solid #e5e7eb;
+  }
+  .cv-preview-viewport {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px;
+    background: #fff;
+  }
+  .cv-preview-scaler-wrap {
+    position: relative;
+    margin: 0 auto;
+  }
+  .cv-preview-scaler {
+    transform-origin: top center;
+  }
+  .cv-overlay-preview {
+    width: ${A4_PREVIEW_WIDTH_PX}px;
+    border: 1px solid #e5e7eb;
+    display: block;
+    background: #fff;
+    overflow: hidden;
+  }
+  .cv-panel-resize-grip {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    width: 14px;
+    height: 14px;
+    pointer-events: none;
+    opacity: 0.35;
+    background:
+      linear-gradient(135deg, transparent 50%, #9ca3af 50%),
+      linear-gradient(135deg, transparent 65%, #9ca3af 65%);
   }
   .cv-overlay-footer {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 16px 20px;
+    padding: 14px 20px;
     border-top: 1px solid #e5e7eb;
     justify-content: flex-end;
+    flex-shrink: 0;
   }
   .cv-btn {
     padding: 8px 16px;
@@ -215,6 +272,8 @@ export class ExportOverlay {
   private baseOptions: ExportOptions | null = null;
   private selectedIds = new Set<string>();
   private callbacks: OverlayCallbacks | null = null;
+  private resizeObserver: ResizeObserver | null = null;
+  private sidebarCollapsed = false;
 
   showExtracting(onCancel: () => void): void {
     this.mount();
@@ -253,15 +312,35 @@ export class ExportOverlay {
       <div class="cv-selection-toolbar">
         <span class="cv-selection-count" data-selection-count></span>
         <div class="cv-selection-actions">
+          <button type="button" class="cv-toggle-sidebar" data-action="toggle-sidebar">Hide messages</button>
           <button type="button" data-action="select-all">Select all</button>
           <button type="button" data-action="select-none">Deselect all</button>
         </div>
       </div>
       <div class="cv-preview-layout">
         <div class="cv-message-sidebar" data-sidebar></div>
-        <iframe class="cv-overlay-preview" sandbox="allow-same-origin" title="PDF preview"></iframe>
+        <div class="cv-preview-column">
+          <div class="cv-preview-viewport" data-preview-viewport>
+            <div class="cv-preview-scaler-wrap" data-scaler-wrap>
+              <div class="cv-preview-scaler" data-scaler>
+                <iframe class="cv-overlay-preview" sandbox="allow-same-origin" title="PDF preview"></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     `;
+
+    body.querySelector('[data-action="toggle-sidebar"]')?.addEventListener('click', () => {
+      this.sidebarCollapsed = !this.sidebarCollapsed;
+      const sidebar = this.shadow!.querySelector('.cv-message-sidebar');
+      const toggleBtn = this.shadow!.querySelector('[data-action="toggle-sidebar"]');
+      sidebar?.classList.toggle('collapsed', this.sidebarCollapsed);
+      if (toggleBtn) {
+        toggleBtn.textContent = this.sidebarCollapsed ? 'Show messages' : 'Hide messages';
+      }
+      requestAnimationFrame(() => this.scalePreview());
+    });
 
     body.querySelector('[data-action="select-all"]')?.addEventListener('click', () => {
       this.selectedIds = new Set(selectable.map((m) => m.id));
@@ -280,20 +359,15 @@ export class ExportOverlay {
     this.renderSidebar(selectable);
     this.refreshPreview();
     this.updateSelectionUi();
+    this.setupPreviewResizeObserver();
 
     const footer = this.shadow!.querySelector('.cv-overlay-footer')!;
     footer.innerHTML = `
       <button class="cv-btn cv-btn-ghost" data-action="cancel">Cancel</button>
-      <button class="cv-btn cv-btn-secondary" data-action="download">Download PDF</button>
-      <button class="cv-btn cv-btn-primary" data-action="print">Print / Save PDF</button>
+      <button class="cv-btn cv-btn-primary" data-action="download">Download PDF</button>
     `;
 
     footer.querySelector('[data-action="cancel"]')?.addEventListener('click', () => callbacks.onCancel());
-    footer.querySelector('[data-action="print"]')?.addEventListener('click', async () => {
-      const opts = this.getExportOptions();
-      if (!opts || !this.conversation) return;
-      await callbacks.onPrint(this.conversation, opts);
-    });
     footer.querySelector('[data-action="download"]')?.addEventListener('click', async () => {
       const opts = this.getExportOptions();
       if (!opts || !this.conversation) return;
@@ -301,7 +375,8 @@ export class ExportOverlay {
     });
 
     const title = this.shadow!.querySelector('.cv-overlay-title')!;
-    title.textContent = conversation.metadata.title ?? 'Chat Export';
+    const msgCount = selectable.length;
+    title.textContent = `${conversation.metadata.title ?? 'Chat Export'} · ${msgCount} messages`;
 
     const panel = this.shadow!.querySelector('.cv-overlay-panel') as HTMLElement;
     this.trapFocus(panel);
@@ -370,7 +445,7 @@ export class ExportOverlay {
     const opts = this.getExportOptions();
     if (!opts) return;
 
-    const { html } = buildExportDocument(this.conversation, opts);
+    const { html } = buildExportDocument(this.conversation, opts, 'preview');
     const iframe = this.shadow.querySelector('.cv-overlay-preview') as HTMLIFrameElement;
     if (!iframe) return;
 
@@ -379,6 +454,56 @@ export class ExportOverlay {
     doc.open();
     doc.write(html);
     doc.close();
+
+    iframe.onload = () => {
+      requestAnimationFrame(() => this.scalePreview());
+    };
+    requestAnimationFrame(() => this.scalePreview());
+  }
+
+  private setupPreviewResizeObserver(): void {
+    const viewport = this.shadow?.querySelector('[data-preview-viewport]') as HTMLElement;
+    const panel = this.shadow?.querySelector('.cv-overlay-panel') as HTMLElement;
+    if (!viewport) return;
+
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = new ResizeObserver(() => {
+      this.scalePreview();
+    });
+    this.resizeObserver.observe(viewport);
+    if (panel) this.resizeObserver.observe(panel);
+  }
+
+  private scalePreview(): void {
+    const viewport = this.shadow?.querySelector('[data-preview-viewport]') as HTMLElement;
+    const wrap = this.shadow?.querySelector('[data-scaler-wrap]') as HTMLElement;
+    const scaler = this.shadow?.querySelector('[data-scaler]') as HTMLElement;
+    const iframe = this.shadow?.querySelector('.cv-overlay-preview') as HTMLIFrameElement;
+    if (!viewport || !wrap || !scaler || !iframe) return;
+
+    const doc = iframe.contentDocument;
+    if (!doc?.documentElement) return;
+
+    iframe.setAttribute('scrolling', 'no');
+    iframe.style.overflow = 'hidden';
+
+    const contentHeight = Math.max(
+      doc.documentElement.scrollHeight,
+      doc.body?.scrollHeight ?? 0,
+    );
+    iframe.style.height = `${contentHeight}px`;
+    doc.documentElement.style.overflow = 'hidden';
+    if (doc.body) doc.body.style.overflow = 'hidden';
+
+    const availableWidth = viewport.clientWidth - 32;
+    const scale = Math.min(1, availableWidth / A4_PREVIEW_WIDTH_PX);
+
+    scaler.style.width = `${A4_PREVIEW_WIDTH_PX}px`;
+    scaler.style.transform = `scale(${scale})`;
+    scaler.style.transformOrigin = 'top center';
+
+    wrap.style.width = `${A4_PREVIEW_WIDTH_PX * scale}px`;
+    wrap.style.height = `${contentHeight * scale}px`;
   }
 
   private updateSelectionUi(): void {
@@ -391,12 +516,14 @@ export class ExportOverlay {
     }
 
     const disabled = this.selectedIds.size === 0;
-    this.shadow.querySelectorAll('[data-action="print"], [data-action="download"]').forEach((btn) => {
+    this.shadow.querySelectorAll('[data-action="download"]').forEach((btn) => {
       (btn as HTMLButtonElement).disabled = disabled;
     });
   }
 
   destroy(): void {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     if (this.previouslyFocused instanceof HTMLElement) {
       this.previouslyFocused.focus();
     }
@@ -439,6 +566,7 @@ export class ExportOverlay {
         </div>
         <div class="cv-overlay-body"></div>
         <div class="cv-overlay-footer"></div>
+        <div class="cv-panel-resize-grip" aria-hidden="true"></div>
       </div>
     `;
 
@@ -501,14 +629,6 @@ function truncatePreview(text: string, maxLen: number): string {
   const single = text.replace(/\s+/g, ' ').trim();
   if (single.length <= maxLen) return single;
   return `${single.slice(0, maxLen)}…`;
-}
-
-export async function handlePrintExport(
-  conversation: Conversation,
-  options: ExportOptions,
-): Promise<void> {
-  const { html } = buildExportDocument(conversation, options);
-  await printViaIframe(html);
 }
 
 export async function handleDownloadExport(

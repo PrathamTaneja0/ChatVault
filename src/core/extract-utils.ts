@@ -170,6 +170,30 @@ export function queryAllFirst(root: ParentNode, selectors: string[]): NodeListOf
   return root.querySelectorAll('.__nonexistent__');
 }
 
+/** Query every selector, dedupe, and return elements in DOM order. */
+export function queryAllMerged(root: ParentNode, selectors: string[]): Element[] {
+  const seen = new Set<Element>();
+  const merged: Element[] = [];
+
+  for (const sel of selectors) {
+    for (const el of root.querySelectorAll(sel)) {
+      if (!seen.has(el)) {
+        seen.add(el);
+        merged.push(el);
+      }
+    }
+  }
+
+  merged.sort((a, b) => {
+    const pos = a.compareDocumentPosition(b);
+    if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+    if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+    return 0;
+  });
+
+  return merged;
+}
+
 export function generateId(prefix: string, index: number): string {
   return `${prefix}-${index}-${Date.now().toString(36)}`;
 }

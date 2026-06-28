@@ -6,9 +6,11 @@ import {
   generateId,
   getPageTitle,
   queryAllFirst,
+  queryAllMerged,
   scrollSweep,
   withCircuitBreaker,
 } from '../core/extract-utils';
+import { normalizeContent, resolveConversationTitle } from '../core/normalize';
 
 export interface SelectorConfig {
   container: string[];
@@ -29,8 +31,9 @@ export function createBaseAdapter(config: {
   selectors: SelectorConfig;
   useVirtualScroll?: boolean;
   virtualItemSelector?: string;
+  diagnosticSelectors?: Array<{ name: string; selector: string }>;
 }): PlatformAdapter {
-  const { id, label, urlPatterns, selectors, useVirtualScroll, virtualItemSelector } = config;
+  const { id, label, urlPatterns, selectors, useVirtualScroll, virtualItemSelector, diagnosticSelectors } = config;
 
   return {
     id,
@@ -44,7 +47,7 @@ export function createBaseAdapter(config: {
     getSelectorDiagnostics(document: Document): SelectorDiagnostic[] {
       const checks: Array<{ name: string; selector: string }> = [
         { name: 'Container', selector: selectors.container[0] ?? '' },
-        { name: 'Messages', selector: selectors.message[0] ?? '' },
+        ...(diagnosticSelectors ?? [{ name: 'Messages', selector: selectors.message[0] ?? '' }]),
         ...(selectors.content?.[0] ? [{ name: 'Content', selector: selectors.content[0] }] : []),
       ];
       return checks.map(({ name, selector }) => {
@@ -70,7 +73,7 @@ export function createBaseAdapter(config: {
 
         onProgress?.({ phase: 'extracting', message: 'Extracting messages…', percent: 50 });
 
-        const messageEls = queryAllFirst(document, selectors.message);
+        const messageEls = queryAllMerged(document, selectors.message);
         const messages: Message[] = [];
 
         messageEls.forEach((el, index) => {
@@ -97,14 +100,28 @@ export function createBaseAdapter(config: {
         const deduped = dedupeMessages(messages);
         enforceTurnLimit(deduped.length);
 
-        const titleEl = selectors.title ? queryAllFirst(document, selectors.title)[0] : null;
+        const titleCandidates: string[] = [];
+        if (selectors.title) {
+          for (const sel of selectors.title) {
+            document.querySelectorAll(sel).forEach((el) => {
+              const t = el.textContent?.trim();
+              if (t) titleCandidates.push(t);
+            });
+          }
+        }
+        titleCandidates.push(getPageTitle(document));
+        const firstUser = deduped.find((m) => m.role === 'user');
+        if (firstUser) {
+          titleCandidates.push(normalizeContent(firstUser).slice(0, 100));
+        }
+
         const modelEl = selectors.model ? queryAllFirst(document, selectors.model)[0] : null;
 
         onProgress?.({ phase: 'done', message: `Extracted ${deduped.length} messages`, percent: 100 });
 
         const conversation: Conversation = {
           metadata: {
-            title: titleEl?.textContent?.trim() ?? getPageTitle(document),
+            title: resolveConversationTitle(titleCandidates, label),
             platform: id,
             platformLabel: label,
             model: modelEl?.textContent?.trim(),

@@ -1,7 +1,7 @@
 import { initAdapters } from '../../adapters';
 import { getAdapterForUrl } from '../../core/registry';
 import { loadOptions } from '../../core/storage';
-import { ExportOverlay, handlePrintExport, handleDownloadExport } from '../../ui/overlay';
+import { ExportOverlay, handleDownloadExport } from '../../ui/overlay';
 import { createFab } from '../../ui/fab';
 import type { ExtensionMessage } from '../../core/messages';
 import { CircuitBreakerError } from '../../core/extract-utils';
@@ -75,9 +75,6 @@ async function startExport(): Promise<void> {
     );
 
     overlay.showPreview(conversation, options, {
-      onPrint: async (conv, exportOpts) => {
-        await handlePrintExport(conv, exportOpts);
-      },
       onDownload: async (conv, exportOpts) => {
         await handleDownloadExport(conv, exportOpts);
       },

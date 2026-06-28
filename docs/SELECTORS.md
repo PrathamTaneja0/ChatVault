@@ -45,7 +45,12 @@ Uses **virtual scroll sweep** – iterates message elements with `scrollIntoView
 
 | Field | Selectors |
 |---|---|
-| message | `user-query`, `model-response`, `message-content` |
+| message | `user-query`, `model-response` (merged via `queryAllMerged` — both roles required) |
+| roleUser | `user-query`, `[data-role="user"]` |
+| roleAssistant | `model-response`, `[data-role="model"]` |
+| content | `.markdown`, `.model-response-text`, `.query-text` |
+
+Diagnostics report separate counts for user and assistant message selectors.
 
 ### Grok (`grok.com`, `x.com`)
 

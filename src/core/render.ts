@@ -38,6 +38,18 @@ marked.use(
 
 marked.setOptions({ gfm: true, breaks: true });
 
+export type RenderMode = 'export' | 'preview';
+
+const PREVIEW_SCREEN_CSS = `
+@media screen {
+  html, body {
+    margin: 0;
+    overflow: hidden;
+    background: #fff;
+  }
+}
+`;
+
 function renderMessageHtml(msg: Message, index: number): string {
   const content = normalizeContent(msg);
   const rendered = marked.parse(content) as string;
@@ -64,21 +76,11 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function renderCoverPage(conv: Conversation): string {
-  const { metadata } = conv;
-  const title = metadata.title ?? 'Chat Export';
+function renderConversationTitle(title: string): string {
   return `
-    <div class="cover-page">
-      <h1 class="cover-title">${escapeHtml(title)}</h1>
-      <dl class="cover-meta">
-        <dt>Platform</dt><dd>${escapeHtml(metadata.platformLabel)}</dd>
-        ${metadata.model ? `<dt>Model</dt><dd>${escapeHtml(metadata.model)}</dd>` : ''}
-        <dt>Exported</dt><dd>${escapeHtml(formatDate(metadata.exportedAt))}</dd>
-        <dt>Messages</dt><dd>${metadata.messageCount}</dd>
-        <dt>URL</dt><dd class="cover-url">${escapeHtml(metadata.url)}</dd>
-      </dl>
-    </div>
-    <div class="page-break"></div>
+    <header class="conversation-title">
+      <h1>${escapeHtml(title)}</h1>
+    </header>
   `;
 }
 
@@ -105,28 +107,30 @@ function renderToc(messages: Message[]): string {
 export function renderConversationHtml(
   conversation: Conversation,
   options: ExportOptions,
+  mode: RenderMode = 'export',
 ): string {
   const messages = filterMessages(conversation.messages, options);
   const showToc = options.tableOfContents && messages.length > 10;
-  const showCover = options.coverPage;
+  const title = conversation.metadata.title ?? 'Chat Export';
 
   const body = messages.map((m, i) => renderMessageHtml(m, i)).join('\n');
+  const previewCss = mode === 'preview' ? PREVIEW_SCREEN_CSS : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(conversation.metadata.title ?? 'Chat Export')}</title>
-  <style>${printCss}</style>
+  <title>${escapeHtml(title)}</title>
+  <style>${printCss}${previewCss}</style>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css">
 </head>
 <body>
-  ${showCover ? renderCoverPage({ ...conversation, metadata: { ...conversation.metadata, messageCount: messages.length } }) : ''}
   ${showToc ? renderToc(messages) : ''}
   <main class="conversation">
+    ${renderConversationTitle(title)}
     ${body}
   </main>
 </body>

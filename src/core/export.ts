@@ -1,9 +1,11 @@
 import type { Conversation, ExportOptions } from './schema';
 import { filterMessages } from './adapter';
-import { renderConversationHtml } from './render';
+import { renderConversationHtml, type RenderMode } from './render';
 import {
   applyFilenameTemplate,
   formatFilenameDate,
+  normalizeContent,
+  sanitizeFilenamePart,
   slugify,
 } from './normalize';
 
@@ -15,8 +17,9 @@ export interface ExportResult {
 export function buildExportDocument(
   conversation: Conversation,
   options: ExportOptions,
+  mode: RenderMode = 'export',
 ): ExportResult {
-  const html = renderConversationHtml(conversation, options);
+  const html = renderConversationHtml(conversation, options, mode);
   const filename = generateFilename(conversation, options);
   return { html, filename };
 }
@@ -25,11 +28,11 @@ export function generateFilename(
   conversation: Conversation,
   options: ExportOptions,
 ): string {
-  const template = options.filenameTemplate ?? '{platform}_{title}_{date}';
+  const template = options.filenameTemplate ?? 'ChatVault_{title}';
   const title = conversation.metadata.title ?? 'chat';
   const vars = {
     platform: conversation.metadata.platform,
-    title: slugify(title, 40),
+    title: sanitizeFilenamePart(title, 80),
     date: formatFilenameDate(conversation.metadata.exportedAt),
     model: slugify(conversation.metadata.model ?? 'unknown', 20),
     count: String(conversation.messages.length),
@@ -100,7 +103,7 @@ export async function downloadViaPdfMake(
       author: 'ChatVault Export',
     },
     pageSize: 'A4' as const,
-    pageMargins: [40, 60, 40, 60] as [number, number, number, number],
+    pageMargins: [72, 72, 72, 72] as [number, number, number, number],
     footer: (currentPage: number) => ({
       text: String(currentPage),
       alignment: 'center' as const,
@@ -131,29 +134,20 @@ function buildPdfContent(
   _fallbackText: string,
 ): Record<string, unknown>[] {
   const content: Record<string, unknown>[] = [];
+  const title = conversation.metadata.title ?? 'Chat Export';
 
-  if (options.coverPage) {
-    content.push(
-      { text: conversation.metadata.title ?? 'Chat Export', style: 'coverTitle', alignment: 'center', margin: [0, 200, 0, 30] },
-      { text: `Platform: ${conversation.metadata.platformLabel}`, alignment: 'center', margin: [0, 0, 0, 5] },
-    );
-    if (conversation.metadata.model) {
-      content.push({ text: `Model: ${conversation.metadata.model}`, alignment: 'center', margin: [0, 0, 0, 5] });
-    }
-    content.push(
-      { text: `Messages: ${conversation.metadata.messageCount}`, alignment: 'center', margin: [0, 0, 0, 5] },
-      { text: conversation.metadata.url, alignment: 'center', fontSize: 8, color: '#6b7280', margin: [0, 0, 0, 0] },
-      { text: '', pageBreak: 'after' },
-    );
-  }
+  content.push(
+    { text: title, fontSize: 16, bold: true, margin: [0, 0, 0, 16] },
+  );
 
   const messages = filterMessages(conversation.messages, options);
   for (const msg of messages) {
     const role = msg.isThinking ? 'Reasoning' : msg.role;
     const color = role === 'user' ? '#4F46E5' : role === 'assistant' || role === 'Assistant' ? '#059669' : '#6b7280';
+    const text = normalizeContent(msg).slice(0, 8000);
     content.push(
       { text: role.toUpperCase(), color, bold: true, margin: [0, 10, 0, 4] },
-      { text: msg.content.slice(0, 8000), margin: [0, 0, 0, 10] },
+      { text, margin: [0, 0, 0, 10] },
     );
   }
 

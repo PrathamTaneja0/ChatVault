@@ -10,7 +10,6 @@ const diagnosticsSection = document.getElementById('diagnostics-section')!;
 const diagnosticsList = document.getElementById('diagnostics-list')!;
 
 const optThinking = document.getElementById('opt-thinking') as HTMLInputElement;
-const optCover = document.getElementById('opt-cover') as HTMLInputElement;
 const optToc = document.getElementById('opt-toc') as HTMLInputElement;
 const optFilename = document.getElementById('opt-filename') as HTMLInputElement;
 
@@ -48,7 +47,6 @@ async function init(): Promise<void> {
 
 function applyOptionsToForm(options: ExportOptions): void {
   optThinking.checked = options.includeThinking;
-  optCover.checked = options.coverPage;
   optToc.checked = options.tableOfContents;
   optFilename.value = options.filenameTemplate ?? DEFAULT_EXPORT_OPTIONS.filenameTemplate!;
 }
@@ -56,7 +54,6 @@ function applyOptionsToForm(options: ExportOptions): void {
 function getOptionsFromForm(): ExportOptions {
   return {
     includeThinking: optThinking.checked,
-    coverPage: optCover.checked,
     tableOfContents: optToc.checked,
     filenameTemplate: optFilename.value || DEFAULT_EXPORT_OPTIONS.filenameTemplate,
   };
@@ -65,7 +62,6 @@ function getOptionsFromForm(): ExportOptions {
 function bindEvents(): void {
   const save = () => saveOptions(getOptionsFromForm());
   optThinking.addEventListener('change', save);
-  optCover.addEventListener('change', save);
   optToc.addEventListener('change', save);
   optFilename.addEventListener('change', save);
 
