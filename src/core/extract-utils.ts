@@ -194,6 +194,30 @@ export function queryAllMerged(root: ParentNode, selectors: string[]): Element[]
   return merged;
 }
 
+export function isArtifactLabelOnly(content: string, title?: string): boolean {
+  const trimmed = content.replace(/\s+/g, ' ').trim();
+  if (trimmed.length < 80) return true;
+  if (/Document\s*·|Spreadsheet\s*·|\.md\s*$/i.test(trimmed) && trimmed.length < 120) return true;
+  if (title && trimmed === title.replace(/\s+/g, ' ').trim()) return true;
+  return false;
+}
+
+/** Drop elements nested inside another matched message node. */
+export function filterNestedMessageElements(elements: Element[]): Element[] {
+  return elements.filter(
+    (el) => !elements.some((other) => other !== el && other.contains(el)),
+  );
+}
+
+export function sortElementsByDomOrder(elements: Element[]): Element[] {
+  return [...elements].sort((a, b) => {
+    const pos = a.compareDocumentPosition(b);
+    if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+    if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+    return 0;
+  });
+}
+
 export function generateId(prefix: string, index: number): string {
   return `${prefix}-${index}-${Date.now().toString(36)}`;
 }

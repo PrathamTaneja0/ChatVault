@@ -1,10 +1,12 @@
 import type { Conversation, Message, MessageRole } from '../core/schema';
 import type { PlatformAdapter, ProgressCallback, SelectorDiagnostic } from '../core/adapter';
 import { dedupeMessages } from '../core/adapter';
+import { extractAttachmentsFromElement } from '../core/attachments';
 import {
   cloneContentWithoutExcluded,
   DEFAULT_ASSISTANT_EXCLUDE_SELECTORS,
   enforceTurnLimit,
+  filterNestedMessageElements,
   generateId,
   getPageTitle,
   queryAllFirst,
@@ -26,6 +28,8 @@ export interface SelectorConfig {
   thinking?: string[];
 }
 
+export type ContentScope = 'full' | 'inner';
+
 export function createBaseAdapter(config: {
   id: string;
   label: string;
@@ -35,8 +39,21 @@ export function createBaseAdapter(config: {
   virtualItemSelector?: string;
   diagnosticSelectors?: Array<{ name: string; selector: string }>;
   excludeSelectors?: string[];
+  contentScope?: ContentScope;
+  preExtract?: (document: Document) => void | Promise<void>;
 }): PlatformAdapter {
-  const { id, label, urlPatterns, selectors, useVirtualScroll, virtualItemSelector, diagnosticSelectors, excludeSelectors } = config;
+  const {
+    id,
+    label,
+    urlPatterns,
+    selectors,
+    useVirtualScroll,
+    virtualItemSelector,
+    diagnosticSelectors,
+    excludeSelectors,
+    contentScope = 'inner',
+    preExtract,
+  } = config;
 
   return {
     id,
@@ -74,16 +91,16 @@ export function createBaseAdapter(config: {
           await scrollSweep(container, onProgress, signal);
         }
 
+        await preExtract?.(document);
+
         onProgress?.({ phase: 'extracting', message: 'Extracting messages…', percent: 50 });
 
-        const messageEls = queryAllMerged(document, selectors.message);
+        const messageEls = filterNestedMessageElements(queryAllMerged(document, selectors.message));
         const messages: Message[] = [];
 
         messageEls.forEach((el, index) => {
           const role = detectRole(el, selectors, index);
-          const contentEl = selectors.content
-            ? queryAllFirst(el, selectors.content)[0] ?? el
-            : el;
+          const contentEl = resolveContentElement(el, role, selectors, contentScope);
 
           const excludeList = [
             ...(role === 'assistant' ? DEFAULT_ASSISTANT_EXCLUDE_SELECTORS : []),
@@ -93,6 +110,8 @@ export function createBaseAdapter(config: {
           const html = clone.innerHTML;
           let content = clone.textContent?.trim() ?? '';
           content = stripSuggestionChipText(content);
+
+          const attachments = extractAttachmentsFromElement(el, role, id, index);
 
           if (!content) return;
 
@@ -104,6 +123,7 @@ export function createBaseAdapter(config: {
             content,
             html,
             isThinking,
+            attachments: attachments.length > 0 ? attachments : undefined,
           });
         });
 
@@ -148,9 +168,30 @@ export function createBaseAdapter(config: {
   };
 }
 
+function resolveContentElement(
+  el: Element,
+  role: MessageRole,
+  selectors: SelectorConfig,
+  contentScope: ContentScope,
+): Element {
+  if (contentScope === 'full') return el;
+  if (role === 'user' && el.matches('[data-testid="user-message"]')) return el;
+  if (selectors.content) {
+    return queryAllFirst(el, selectors.content)[0] ?? el;
+  }
+  return el;
+}
+
+function matchesRoleSelector(el: Element, selectorList?: string[]): boolean {
+  if (!selectorList) return false;
+  return selectorList.some(
+    (s) => el.matches(s) || !!el.querySelector(s) || !!el.closest(s),
+  );
+}
+
 function detectRole(el: Element, selectors: SelectorConfig, index: number): MessageRole {
-  if (selectors.roleUser?.some((s) => el.matches(s) || el.querySelector(s))) return 'user';
-  if (selectors.roleAssistant?.some((s) => el.matches(s) || el.querySelector(s))) return 'assistant';
+  if (matchesRoleSelector(el, selectors.roleUser)) return 'user';
+  if (matchesRoleSelector(el, selectors.roleAssistant)) return 'assistant';
 
   const dataRole = el.getAttribute('data-message-author-role');
   if (dataRole === 'user') return 'user';
@@ -162,3 +203,5 @@ function detectRole(el: Element, selectors: SelectorConfig, index: number): Mess
 
   return index % 2 === 0 ? 'user' : 'assistant';
 }
+
+export { detectRole, resolveContentElement, matchesRoleSelector };
