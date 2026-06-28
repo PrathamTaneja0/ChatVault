@@ -182,15 +182,17 @@ const OVERLAY_STYLES = `
     min-width: 0;
     display: flex;
     flex-direction: column;
-    background: #fff;
+    background: #f3f4f6;
     border-left: 1px solid #e5e7eb;
   }
   .cv-preview-viewport {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 12px;
-    background: #fff;
+    padding: 24px;
+    background: #f3f4f6;
+    display: flex;
+    justify-content: center;
   }
   .cv-preview-scaler-wrap {
     position: relative;
@@ -201,10 +203,12 @@ const OVERLAY_STYLES = `
   }
   .cv-overlay-preview {
     width: ${A4_PREVIEW_WIDTH_PX}px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid #d1d5db;
     display: block;
     background: #fff;
     overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+    border-radius: 2px;
   }
   .cv-panel-resize-grip {
     position: absolute;
@@ -495,7 +499,7 @@ export class ExportOverlay {
     doc.documentElement.style.overflow = 'hidden';
     if (doc.body) doc.body.style.overflow = 'hidden';
 
-    const availableWidth = viewport.clientWidth - 32;
+    const availableWidth = viewport.clientWidth - 48;
     const scale = Math.min(1, availableWidth / A4_PREVIEW_WIDTH_PX);
 
     scaler.style.width = `${A4_PREVIEW_WIDTH_PX}px`;

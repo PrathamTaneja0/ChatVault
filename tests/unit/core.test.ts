@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import type { Message } from '../../src/core/schema';
 import { dedupeMessages, filterMessages, getSelectableMessages } from '../../src/core/adapter';
 import { DEFAULT_EXPORT_OPTIONS } from '../../src/core/schema';
-import { generateFilename } from '../../src/core/export';
-import { queryAllMerged } from '../../src/core/extract-utils';
+import { generateFilename, htmlToPdfMakeContent, extractMainHtml } from '../../src/core/export';
+import { cloneContentWithoutExcluded, queryAllMerged } from '../../src/core/extract-utils';
+import { renderConversationHtml } from '../../src/core/render';
 import {
   applyFilenameTemplate,
   normalizeContent,
@@ -11,6 +12,7 @@ import {
   sanitizeFilenamePart,
   slugify,
   stripPlatformPrefixes,
+  stripSuggestionChipText,
   getTurndown,
 } from '../../src/core/normalize';
 
@@ -130,6 +132,72 @@ describe('resolveConversationTitle', () => {
       'Gemini',
     );
     expect(result).toBe('Conversation with');
+  });
+});
+
+describe('stripSuggestionChipText', () => {
+  it('removes trailing Yes chip line', () => {
+    const input = 'Register with UAB PIUNE for ADHD\nYes';
+    expect(stripSuggestionChipText(input)).toBe('Register with UAB PIUNE for ADHD');
+  });
+
+  it('keeps single-line content unchanged', () => {
+    expect(stripSuggestionChipText('Only one line')).toBe('Only one line');
+  });
+});
+
+describe('cloneContentWithoutExcluded', () => {
+  it('removes button elements from cloned content', () => {
+    document.body.innerHTML = `
+      <div id="content">
+        <p>Main answer text</p>
+        <button>Yes</button>
+      </div>
+    `;
+    const el = document.getElementById('content')!;
+    const clone = cloneContentWithoutExcluded(el, ['button']);
+    expect(clone.textContent?.trim()).toBe('Main answer text');
+    expect(clone.querySelector('button')).toBeNull();
+  });
+});
+
+describe('htmlToPdfMakeContent', () => {
+  it('converts bold HTML to pdfmake bold text, not raw markdown', async () => {
+    const html = `<!DOCTYPE html><html><body><main class="conversation">
+      <section class="message"><div class="message-body"><p><strong>bold word</strong></p></div></section>
+    </main></body></html>`;
+    const content = await htmlToPdfMakeContent(html);
+    const serialized = JSON.stringify(content);
+    expect(serialized).not.toContain('**bold word**');
+    expect(serialized).toContain('bold word');
+  });
+});
+
+describe('extractMainHtml', () => {
+  it('extracts main conversation inner HTML', () => {
+    const html = '<html><body><main class="conversation"><p>Hello</p></main></body></html>';
+    expect(extractMainHtml(html)).toContain('<p>Hello</p>');
+  });
+});
+
+describe('preview render CSS', () => {
+  it('includes document margins in preview mode', () => {
+    const html = renderConversationHtml(
+      {
+        metadata: {
+          title: 'Test',
+          platform: 'gemini',
+          platformLabel: 'Gemini',
+          url: 'https://example.com',
+          exportedAt: '2026-06-28T00:00:00.000Z',
+          messageCount: 1,
+        },
+        messages: [{ id: '1', role: 'user', content: 'Hi' }],
+      },
+      DEFAULT_EXPORT_OPTIONS,
+      'preview',
+    );
+    expect(html).toContain('padding: 25.4mm');
   });
 });
 

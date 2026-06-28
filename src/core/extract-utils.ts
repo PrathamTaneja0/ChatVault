@@ -215,3 +215,23 @@ export function getPageTitle(doc: Document): string {
     'Untitled Chat'
   );
 }
+
+/** Default UI chrome stripped from assistant message content. */
+export const DEFAULT_ASSISTANT_EXCLUDE_SELECTORS = [
+  'button',
+  'nav',
+  '[role="button"]',
+];
+
+/** Clone a content node and remove excluded descendant elements before reading text/HTML. */
+export function cloneContentWithoutExcluded(
+  contentEl: Element,
+  excludeSelectors: string[] = [],
+): HTMLElement {
+  const clone = contentEl.cloneNode(true) as HTMLElement;
+  for (const sel of excludeSelectors) {
+    if (!sel) continue;
+    clone.querySelectorAll(sel).forEach((node) => node.remove());
+  }
+  return clone;
+}

@@ -1,10 +1,8 @@
 import type { Conversation, ExportOptions } from './schema';
-import { filterMessages } from './adapter';
-import { renderConversationHtml, type RenderMode } from './render';
+import { renderConversationHtml } from './render';
 import {
   applyFilenameTemplate,
   formatFilenameDate,
-  normalizeContent,
   sanitizeFilenamePart,
   slugify,
 } from './normalize';
@@ -17,7 +15,7 @@ export interface ExportResult {
 export function buildExportDocument(
   conversation: Conversation,
   options: ExportOptions,
-  mode: RenderMode = 'export',
+  mode: 'export' | 'preview' = 'export',
 ): ExportResult {
   const html = renderConversationHtml(conversation, options, mode);
   const filename = generateFilename(conversation, options);
@@ -81,6 +79,46 @@ async function waitForFonts(doc: Document): Promise<void> {
   }
 }
 
+export function extractMainHtml(html: string): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const main = doc.querySelector('main.conversation');
+  return main?.innerHTML ?? doc.body.innerHTML;
+}
+
+type PdfMakeContent = Record<string, unknown>;
+
+export async function htmlToPdfMakeContent(html: string): Promise<PdfMakeContent[]> {
+  const htmlToPdfmakeModule = await import('html-to-pdfmake');
+  const htmlToPdfmake = (htmlToPdfmakeModule as { default?: (html: string, options?: Record<string, unknown>) => unknown }).default
+    ?? htmlToPdfmakeModule;
+
+  const mainHtml = extractMainHtml(html);
+  const result = (htmlToPdfmake as (html: string, options?: Record<string, unknown>) => unknown)(mainHtml, {
+    window,
+    removeExtraBlanks: true,
+    tableAutoSize: true,
+    defaultStyles: {
+      h1: { fontSize: 20, bold: true, margin: [0, 0, 0, 12] },
+      h2: { fontSize: 16, bold: true, margin: [0, 12, 0, 6] },
+      h3: { fontSize: 14, bold: true, margin: [0, 10, 0, 4] },
+      p: { margin: [0, 0, 0, 8], lineHeight: 1.4 },
+      ul: { margin: [0, 0, 0, 8] },
+      ol: { margin: [0, 0, 0, 8] },
+      li: { margin: [0, 0, 0, 4] },
+      pre: { margin: [0, 0, 0, 8], fillColor: '#f4f4f8' },
+      code: { fontSize: 9 },
+      a: { color: '#2563eb', decoration: 'underline' },
+    },
+  });
+
+  if (Array.isArray(result)) return result as PdfMakeContent[];
+  if (result && typeof result === 'object' && 'content' in result) {
+    return (result as { content: PdfMakeContent[] }).content;
+  }
+  return [result as PdfMakeContent];
+}
+
 export async function downloadViaPdfMake(
   conversation: Conversation,
   options: ExportOptions,
@@ -95,7 +133,7 @@ export async function downloadViaPdfMake(
   pdfMakeModule.vfs = vfs;
 
   const { html } = buildExportDocument(conversation, options);
-  const textContent = stripHtml(html);
+  const bodyContent = await htmlToPdfMakeContent(html);
 
   const docDefinition = {
     info: {
@@ -111,11 +149,16 @@ export async function downloadViaPdfMake(
       color: '#6b7280',
       margin: [0, 10, 0, 0] as [number, number, number, number],
     }),
-    content: buildPdfContent(conversation, options, textContent),
+    content: bodyContent,
     defaultStyle: {
       font: 'Roboto',
       fontSize: 10,
       lineHeight: 1.4,
+      color: '#1f2937',
+    },
+    styles: {
+      'message-user': { color: '#4F46E5', bold: true },
+      'message-assistant': { color: '#059669', bold: true },
     },
   };
 
@@ -126,36 +169,6 @@ export async function downloadViaPdfMake(
       reject(err);
     }
   });
-}
-
-function buildPdfContent(
-  conversation: Conversation,
-  options: ExportOptions,
-  _fallbackText: string,
-): Record<string, unknown>[] {
-  const content: Record<string, unknown>[] = [];
-  const title = conversation.metadata.title ?? 'Chat Export';
-
-  content.push(
-    { text: title, fontSize: 16, bold: true, margin: [0, 0, 0, 16] },
-  );
-
-  const messages = filterMessages(conversation.messages, options);
-  for (const msg of messages) {
-    const role = msg.isThinking ? 'Reasoning' : msg.role;
-    const color = role === 'user' ? '#4F46E5' : role === 'assistant' || role === 'Assistant' ? '#059669' : '#6b7280';
-    const text = normalizeContent(msg).slice(0, 8000);
-    content.push(
-      { text: role.toUpperCase(), color, bold: true, margin: [0, 10, 0, 4] },
-      { text, margin: [0, 0, 0, 10] },
-    );
-  }
-
-  return content;
-}
-
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 export async function silentDownload(

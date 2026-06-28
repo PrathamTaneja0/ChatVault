@@ -39,7 +39,7 @@ export function normalizeContent(message: Message): string {
   } else {
     text = message.content.trim();
   }
-  return stripPlatformPrefixes(text);
+  return stripSuggestionChipText(stripPlatformPrefixes(text));
 }
 
 const PLATFORM_PREFIXES = [
@@ -54,6 +54,20 @@ export function stripPlatformPrefixes(text: string): string {
     result = result.replace(pattern, '');
   }
   return result.trim();
+}
+
+const SUGGESTION_CHIP_LINES = /^(yes|no|tell me more|continue|more details|ok|sure)$/i;
+
+/** Remove trailing short suggestion-chip lines (e.g. Gemini "Yes" chip). */
+export function stripSuggestionChipText(text: string): string {
+  const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
+  if (lines.length < 2) return text.trim();
+
+  const last = lines[lines.length - 1];
+  if (SUGGESTION_CHIP_LINES.test(last) && last.split(/\s+/).length <= 3) {
+    lines.pop();
+  }
+  return lines.join('\n').trim();
 }
 
 export function roleLabel(role: MessageRole): string {

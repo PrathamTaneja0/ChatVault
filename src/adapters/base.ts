@@ -2,6 +2,8 @@ import type { Conversation, Message, MessageRole } from '../core/schema';
 import type { PlatformAdapter, ProgressCallback, SelectorDiagnostic } from '../core/adapter';
 import { dedupeMessages } from '../core/adapter';
 import {
+  cloneContentWithoutExcluded,
+  DEFAULT_ASSISTANT_EXCLUDE_SELECTORS,
   enforceTurnLimit,
   generateId,
   getPageTitle,
@@ -10,7 +12,7 @@ import {
   scrollSweep,
   withCircuitBreaker,
 } from '../core/extract-utils';
-import { normalizeContent, resolveConversationTitle } from '../core/normalize';
+import { normalizeContent, resolveConversationTitle, stripSuggestionChipText } from '../core/normalize';
 
 export interface SelectorConfig {
   container: string[];
@@ -32,8 +34,9 @@ export function createBaseAdapter(config: {
   useVirtualScroll?: boolean;
   virtualItemSelector?: string;
   diagnosticSelectors?: Array<{ name: string; selector: string }>;
+  excludeSelectors?: string[];
 }): PlatformAdapter {
-  const { id, label, urlPatterns, selectors, useVirtualScroll, virtualItemSelector, diagnosticSelectors } = config;
+  const { id, label, urlPatterns, selectors, useVirtualScroll, virtualItemSelector, diagnosticSelectors, excludeSelectors } = config;
 
   return {
     id,
@@ -81,8 +84,15 @@ export function createBaseAdapter(config: {
           const contentEl = selectors.content
             ? queryAllFirst(el, selectors.content)[0] ?? el
             : el;
-          const html = contentEl.innerHTML;
-          const content = contentEl.textContent?.trim() ?? '';
+
+          const excludeList = [
+            ...(role === 'assistant' ? DEFAULT_ASSISTANT_EXCLUDE_SELECTORS : []),
+            ...(excludeSelectors ?? []),
+          ];
+          const clone = cloneContentWithoutExcluded(contentEl, excludeList);
+          const html = clone.innerHTML;
+          let content = clone.textContent?.trim() ?? '';
+          content = stripSuggestionChipText(content);
 
           if (!content) return;
 

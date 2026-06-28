@@ -22,4 +22,12 @@ export const geminiAdapter = createBaseAdapter({
     { name: 'User messages', selector: 'user-query' },
     { name: 'Assistant messages', selector: 'model-response' },
   ],
+  excludeSelectors: [
+    'button',
+    '[class*="suggestion"]',
+    '[class*="chip"]',
+    '[class*="follow-up"]',
+    '[class*="prompt"]',
+    '[role="button"]',
+  ],
 });

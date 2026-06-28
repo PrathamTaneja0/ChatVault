@@ -36,7 +36,7 @@ Load the extension in Chrome: `chrome://extensions` → Developer mode → Load 
 2. Click the floating **Export** button (bottom-right) or press **Ctrl+Shift+E**
 3. Wait for extraction (scroll sweep loads lazy messages)
 4. Preview the formatted document in the overlay
-5. **Print / Save PDF** (primary) or **Download PDF** (silent pdfmake download)
+5. **Download PDF** (HTML-rendered via pdfmake, same layout as preview)
 
 ## Architecture
 
@@ -105,12 +105,11 @@ flowchart TD
 4. **Messages** – markdown rendered via marked with syntax highlighting
 5. **Print CSS** – inlined A4 layout with role colors and page numbers
 
-### PDF Export Paths
+### PDF Export
 
-| Path | Method | When to use |
-|------|--------|-------------|
-| Primary | Hidden iframe + `window.print()` | Best fidelity, user picks "Save as PDF" |
-| Secondary | Lazy-loaded pdfmake | Silent download without print dialog |
+| Path | Method |
+|------|--------|
+| Download | Rendered HTML converted to pdfmake (matches preview formatting) |
 
 ## PDF Layout
 

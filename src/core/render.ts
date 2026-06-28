@@ -42,10 +42,18 @@ export type RenderMode = 'export' | 'preview';
 
 const PREVIEW_SCREEN_CSS = `
 @media screen {
-  html, body {
-    margin: 0;
+  html {
+    background: transparent;
     overflow: hidden;
+  }
+  body {
+    margin: 0;
+    padding: 25.4mm;
+    max-width: 210mm;
+    min-height: 297mm;
     background: #fff;
+    box-sizing: border-box;
+    overflow: hidden;
   }
 }
 `;
