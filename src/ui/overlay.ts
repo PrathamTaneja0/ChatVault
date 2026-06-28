@@ -3,7 +3,7 @@ import type { ExtractionProgress } from '../core/adapter';
 import { getSelectableMessages } from '../core/adapter';
 import { normalizeContent, roleLabel } from '../core/normalize';
 import { createProgressBar, progressStyles } from './progress';
-import { buildExportDocument, silentDownload } from '../core/export';
+import { buildExportDocument, buildExportJson, silentDownload } from '../core/export';
 import { saveOptions } from '../core/storage';
 
 export interface OverlayCallbacks {
@@ -149,6 +149,55 @@ const OVERLAY_STYLES = `
   .cv-export-options input[type="checkbox"] {
     cursor: pointer;
     accent-color: #6366f1;
+  }
+  .cv-view-toggle {
+    display: inline-flex;
+    border: 1px solid #404040;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-left: auto;
+  }
+  .cv-view-toggle button {
+    font-size: 12px;
+    padding: 5px 14px;
+    border: none;
+    background: #2d2d2d;
+    color: #a3a3a3;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .cv-view-toggle button.active {
+    background: #6366f1;
+    color: #fff;
+  }
+  .cv-view-toggle button:not(.active):hover {
+    background: #3a3a3a;
+    color: #ececec;
+  }
+  .cv-preview-pane {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: none;
+  }
+  .cv-preview-pane.active {
+    display: flex;
+    flex-direction: column;
+  }
+  .cv-json-viewport {
+    flex: 1;
+    overflow: auto;
+    padding: 16px 20px;
+    background: #141414;
+  }
+  .cv-json-view {
+    margin: 0;
+    font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+    font-size: 12px;
+    line-height: 1.55;
+    color: #d4d4d4;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
   .cv-preview-layout {
     display: flex;
@@ -325,6 +374,7 @@ export class ExportOverlay {
   private scalePreviewFrame: number | null = null;
   private isDestroying = false;
   private extractingCancelCallback: (() => void) | null = null;
+  private previewMode: 'json' | 'pdf' = 'json';
 
   showExtracting(onCancel: () => void): void {
     this.mount();
@@ -374,14 +424,25 @@ export class ExportOverlay {
           <input type="checkbox" data-opt-thinking checked />
           Include thinking/reasoning chains
         </label>
+        <div class="cv-view-toggle" role="group" aria-label="Preview view">
+          <button type="button" data-view="json" class="active">JSON</button>
+          <button type="button" data-view="pdf">PDF</button>
+        </div>
       </div>
       <div class="cv-preview-layout">
         <div class="cv-message-sidebar" data-sidebar></div>
         <div class="cv-preview-column">
-          <div class="cv-preview-viewport" data-preview-viewport>
-            <div class="cv-preview-scaler-wrap" data-scaler-wrap>
-              <div class="cv-preview-scaler" data-scaler>
-                <iframe class="cv-overlay-preview" sandbox="allow-same-origin" title="PDF preview"></iframe>
+          <div class="cv-preview-pane active" data-json-pane>
+            <div class="cv-json-viewport">
+              <pre class="cv-json-view" data-json-view></pre>
+            </div>
+          </div>
+          <div class="cv-preview-pane" data-pdf-pane>
+            <div class="cv-preview-viewport" data-preview-viewport>
+              <div class="cv-preview-scaler-wrap" data-scaler-wrap>
+                <div class="cv-preview-scaler" data-scaler>
+                  <iframe class="cv-overlay-preview" sandbox="allow-same-origin" title="PDF preview"></iframe>
+                </div>
               </div>
             </div>
           </div>
@@ -415,6 +476,7 @@ export class ExportOverlay {
     });
 
     this.bindExportOptions();
+    this.bindViewToggle();
 
     this.renderSidebar(selectable);
     this.refreshPreview();
@@ -424,15 +486,13 @@ export class ExportOverlay {
     const footer = this.shadow!.querySelector('.cv-overlay-footer')!;
     footer.innerHTML = `
       <button class="cv-btn cv-btn-ghost" data-action="cancel">Cancel</button>
-      <button class="cv-btn cv-btn-primary" data-action="download">Download PDF</button>
+      <button class="cv-btn cv-btn-primary" data-action="primary">Copy</button>
     `;
 
     footer.querySelector('[data-action="cancel"]')?.addEventListener('click', () => this.closeOverlay());
-    footer.querySelector('[data-action="download"]')?.addEventListener('click', async () => {
-      const opts = this.getExportOptions();
-      if (!opts || !this.conversation) return;
-      await callbacks.onDownload(this.conversation, opts);
-    });
+    footer.querySelector('[data-action="primary"]')?.addEventListener('click', () => void this.handlePrimaryAction());
+
+    this.updatePrimaryActionButton();
 
     const title = this.shadow!.querySelector('.cv-overlay-title')!;
     const msgCount = selectable.length;
@@ -440,6 +500,53 @@ export class ExportOverlay {
 
     const panel = this.shadow!.querySelector('.cv-overlay-panel') as HTMLElement;
     this.trapFocus(panel);
+  }
+
+  private bindViewToggle(): void {
+    if (!this.shadow) return;
+
+    this.shadow.querySelectorAll('.cv-view-toggle [data-view]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const mode = btn.getAttribute('data-view') as 'json' | 'pdf';
+        if (!mode || mode === this.previewMode) return;
+        this.previewMode = mode;
+        this.shadow!.querySelectorAll('.cv-view-toggle [data-view]').forEach((b) => {
+          b.classList.toggle('active', b.getAttribute('data-view') === mode);
+        });
+        this.shadow!.querySelector('[data-json-pane]')?.classList.toggle('active', mode === 'json');
+        this.shadow!.querySelector('[data-pdf-pane]')?.classList.toggle('active', mode === 'pdf');
+        this.updatePrimaryActionButton();
+        this.refreshPreview();
+      });
+    });
+  }
+
+  private async handlePrimaryAction(): Promise<void> {
+    const opts = this.getExportOptions();
+    if (!opts || !this.conversation || !this.callbacks) return;
+
+    if (this.previewMode === 'json') {
+      const json = buildExportJson(this.conversation, opts);
+      await navigator.clipboard.writeText(json);
+      const btn = this.shadow?.querySelector('[data-action="primary"]') as HTMLButtonElement;
+      if (btn) {
+        const original = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => {
+          if (btn.isConnected) btn.textContent = original;
+        }, 1500);
+      }
+      return;
+    }
+
+    await this.callbacks.onDownload(this.conversation, opts);
+  }
+
+  private updatePrimaryActionButton(): void {
+    const btn = this.shadow?.querySelector('[data-action="primary"]') as HTMLButtonElement;
+    if (btn) {
+      btn.textContent = this.previewMode === 'json' ? 'Copy' : 'Download PDF';
+    }
   }
 
   private bindExportOptions(): void {
@@ -531,6 +638,25 @@ export class ExportOverlay {
   }
 
   private refreshPreview(): void {
+    if (this.previewMode === 'json') {
+      this.refreshJsonView();
+    } else {
+      this.refreshPdfView();
+    }
+  }
+
+  private refreshJsonView(): void {
+    if (!this.conversation || !this.shadow) return;
+    const opts = this.getExportOptions();
+    if (!opts) return;
+
+    const jsonView = this.shadow.querySelector('[data-json-view]');
+    if (jsonView) {
+      jsonView.textContent = buildExportJson(this.conversation, opts);
+    }
+  }
+
+  private refreshPdfView(): void {
     if (!this.conversation || !this.shadow) return;
     const opts = this.getExportOptions();
     if (!opts) return;
@@ -571,7 +697,7 @@ export class ExportOverlay {
   }
 
   private scalePreview(): void {
-    if (this.isDestroying) return;
+    if (this.isDestroying || this.previewMode !== 'pdf') return;
     const viewport = this.shadow?.querySelector('[data-preview-viewport]') as HTMLElement;
     const wrap = this.shadow?.querySelector('[data-scaler-wrap]') as HTMLElement;
     const scaler = this.shadow?.querySelector('[data-scaler]') as HTMLElement;
@@ -616,7 +742,7 @@ export class ExportOverlay {
     }
 
     const disabled = this.selectedIds.size === 0;
-    this.shadow.querySelectorAll('[data-action="download"]').forEach((btn) => {
+    this.shadow.querySelectorAll('[data-action="primary"]').forEach((btn) => {
       (btn as HTMLButtonElement).disabled = disabled;
     });
   }
