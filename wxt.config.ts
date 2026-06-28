@@ -7,7 +7,7 @@ export default defineConfig({
     name: 'ChatVault Export',
     description: 'Export AI chat conversations to beautifully formatted PDFs',
     version: '1.0.0',
-    permissions: ['activeTab', 'storage', 'downloads', 'scripting'],
+    permissions: ['activeTab', 'storage', 'downloads', 'scripting', 'clipboardRead'],
     host_permissions: [
       'https://chatgpt.com/*',
       'https://chat.openai.com/*',
