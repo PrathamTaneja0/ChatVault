@@ -7,10 +7,12 @@ const FAB_STYLES = `
     width: 52px;
     height: 52px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #4F46E5, #059669);
-    border: none;
+    background: radial-gradient(circle at 32% 28%, #4a4a4a 0%, #1a1a1a 48%, #0a0a0a 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     cursor: pointer;
-    box-shadow: 0 4px 16px rgba(79, 70, 229, 0.4);
+    box-shadow:
+      0 4px 16px rgba(0, 0, 0, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.14);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -19,7 +21,9 @@ const FAB_STYLES = `
   }
   .cv-fab:hover {
     transform: scale(1.08);
-    box-shadow: 0 6px 24px rgba(79, 70, 229, 0.5);
+    box-shadow:
+      0 6px 24px rgba(0, 0, 0, 0.65),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
   }
   .cv-fab svg {
     width: 24px;

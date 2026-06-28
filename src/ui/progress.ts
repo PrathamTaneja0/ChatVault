@@ -29,21 +29,21 @@ export const progressStyles = `
   .cv-progress { width: 100%; }
   .cv-progress-track {
     height: 6px;
-    background: #e5e7eb;
+    background: #333;
     border-radius: 3px;
     overflow: hidden;
     margin-bottom: 12px;
   }
   .cv-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #4F46E5, #059669);
+    background: linear-gradient(90deg, #6366f1, #10b981);
     border-radius: 3px;
     width: 0%;
     transition: width 0.3s ease;
   }
   .cv-progress-text {
     font-size: 13px;
-    color: #6b7280;
+    color: #a3a3a3;
     margin: 0;
     text-align: center;
   }
