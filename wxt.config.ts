@@ -26,7 +26,6 @@ export default defineConfig({
     ],
     action: {
       default_title: 'ChatVault Export',
-      default_popup: 'popup.html',
     },
     icons: {
       16: 'icon/16.png',

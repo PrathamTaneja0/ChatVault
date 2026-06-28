@@ -27,20 +27,6 @@ async function handleMessage(message: ExtensionMessage): Promise<unknown> {
     case 'TRIGGER_EXPORT':
       await startExport();
       return { ok: true };
-    case 'GET_STATUS': {
-      const adapter = getAdapterForUrl(window.location.href);
-      return {
-        platform: adapter?.id ?? null,
-        platformLabel: adapter?.label ?? null,
-        url: window.location.href,
-        supported: !!adapter,
-      };
-    }
-    case 'GET_DIAGNOSTICS': {
-      const adapter = getAdapterForUrl(window.location.href);
-      const diagnostics = adapter?.getSelectorDiagnostics?.(document) ?? [];
-      return { platform: adapter?.id ?? null, diagnostics };
-    }
     default:
       return undefined;
   }

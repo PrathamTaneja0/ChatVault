@@ -1,19 +1,13 @@
 import type { ExtensionMessage } from '../core/messages';
 
 export default defineBackground(() => {
+  browser.action.onClicked.addListener(async () => {
+    await triggerExportOnActiveTab();
+  });
+
   browser.commands.onCommand.addListener(async (command) => {
     if (command !== 'export-chat') return;
-
-    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) return;
-
-    try {
-      await browser.tabs.sendMessage(tab.id, {
-        type: 'TRIGGER_EXPORT',
-      } satisfies ExtensionMessage);
-    } catch {
-      /* content script not loaded on this tab */
-    }
+    await triggerExportOnActiveTab();
   });
 
   browser.runtime.onMessage.addListener(
@@ -28,6 +22,19 @@ export default defineBackground(() => {
     },
   );
 });
+
+async function triggerExportOnActiveTab(): Promise<void> {
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return;
+
+  try {
+    await browser.tabs.sendMessage(tab.id, {
+      type: 'TRIGGER_EXPORT',
+    } satisfies ExtensionMessage);
+  } catch {
+    /* content script not loaded on this tab */
+  }
+}
 
 async function handleStartExport(payload: { tabId: number }): Promise<unknown> {
   return browser.tabs.sendMessage(payload.tabId, { type: 'TRIGGER_EXPORT' });
