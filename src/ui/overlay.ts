@@ -193,13 +193,15 @@ const OVERLAY_STYLES = `
     background: #f3f4f6;
     display: flex;
     justify-content: center;
+    align-items: flex-start;
   }
   .cv-preview-scaler-wrap {
     position: relative;
     margin: 0 auto;
+    flex-shrink: 0;
   }
   .cv-preview-scaler {
-    transform-origin: top center;
+    transform-origin: top left;
   }
   .cv-overlay-preview {
     width: ${A4_PREVIEW_WIDTH_PX}px;
@@ -278,6 +280,7 @@ export class ExportOverlay {
   private callbacks: OverlayCallbacks | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private sidebarCollapsed = false;
+  private scalePreviewFrame: number | null = null;
 
   showExtracting(onCancel: () => void): void {
     this.mount();
@@ -472,7 +475,13 @@ export class ExportOverlay {
 
     this.resizeObserver?.disconnect();
     this.resizeObserver = new ResizeObserver(() => {
-      this.scalePreview();
+      if (this.scalePreviewFrame !== null) {
+        cancelAnimationFrame(this.scalePreviewFrame);
+      }
+      this.scalePreviewFrame = requestAnimationFrame(() => {
+        this.scalePreviewFrame = null;
+        this.scalePreview();
+      });
     });
     this.resizeObserver.observe(viewport);
     if (panel) this.resizeObserver.observe(panel);
@@ -501,13 +510,16 @@ export class ExportOverlay {
 
     const availableWidth = viewport.clientWidth - 48;
     const scale = Math.min(1, availableWidth / A4_PREVIEW_WIDTH_PX);
+    const scaledWidth = A4_PREVIEW_WIDTH_PX * scale;
+    const scaledHeight = contentHeight * scale;
 
     scaler.style.width = `${A4_PREVIEW_WIDTH_PX}px`;
+    scaler.style.height = `${contentHeight}px`;
     scaler.style.transform = `scale(${scale})`;
-    scaler.style.transformOrigin = 'top center';
+    scaler.style.transformOrigin = 'top left';
 
-    wrap.style.width = `${A4_PREVIEW_WIDTH_PX * scale}px`;
-    wrap.style.height = `${contentHeight * scale}px`;
+    wrap.style.width = `${scaledWidth}px`;
+    wrap.style.height = `${scaledHeight}px`;
   }
 
   private updateSelectionUi(): void {
