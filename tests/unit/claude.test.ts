@@ -294,8 +294,8 @@ describe('claudeAdapter', () => {
       if (url.includes('download-file')) {
         return {
           ok: true,
-          clone: () => ({ text: async () => FULL_ARTIFACT }),
-          text: async () => FULL_ARTIFACT,
+          clone: () => ({ text: async (): Promise<string> => FULL_ARTIFACT }),
+          text: async (): Promise<string> => FULL_ARTIFACT,
         };
       }
       return originalFetch(input);
@@ -341,8 +341,8 @@ describe('claudeAdapter', () => {
       if (url.includes('download-file')) {
         return {
           ok: true,
-          clone: () => ({ text: async () => FULL_ARTIFACT }),
-          text: async () => FULL_ARTIFACT,
+          clone: () => ({ text: async (): Promise<string> => FULL_ARTIFACT }),
+          text: async (): Promise<string> => FULL_ARTIFACT,
         };
       }
       return originalFetch(input);
