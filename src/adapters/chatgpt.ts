@@ -1,8 +1,9 @@
 import { createBaseAdapter } from './base';
-import { waitForStreaming } from '../core/extract-utils';
+import { enforceTurnLimit, waitForStreaming, withCircuitBreaker } from '../core/extract-utils';
 import type { Conversation } from '../core/schema';
 import type { PlatformAdapter } from '../core/adapter';
-import { withCircuitBreaker } from '../core/extract-utils';
+import { extractChatGptViaApi } from '../sources/chatgpt-api';
+import { hydrateImageAttachments } from '../core/images';
 
 const selectors = {
   container: ['main', '[role="main"]', '.flex.flex-col.text-sm'],
@@ -56,6 +57,23 @@ export const chatgptAdapter: PlatformAdapter = {
         onProgress,
         signal,
       );
+
+      const location = document.location;
+      if (location?.href) {
+        onProgress?.({ phase: 'detecting', message: 'Fetching conversation from ChatGPT…', percent: 5 });
+        const viaApi = await extractChatGptViaApi(location, signal).catch(() => null);
+        if (viaApi && viaApi.messages.length > 0) {
+          enforceTurnLimit(viaApi.messages.length);
+          onProgress?.({ phase: 'waiting', message: 'Loading images…', percent: 60 });
+          await hydrateImageAttachments(viaApi, signal);
+          onProgress?.({
+            phase: 'done',
+            message: `Extracted ${viaApi.messages.length} messages`,
+            percent: 100,
+          });
+          return viaApi;
+        }
+      }
 
       const { scrollSweep, findScrollableContainer } = await import('../core/extract-utils');
       const container = findScrollableContainer(document, selectors.container);

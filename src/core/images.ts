@@ -1,4 +1,5 @@
 import type { Attachment, Conversation, MessageRole } from './schema';
+import type { FetchImageResponse } from './messages';
 import { generateId } from './extract-utils';
 
 /**
@@ -103,9 +104,38 @@ async function encodeBitmapBlob(blob: Blob): Promise<EncodedImage | null> {
   }
 }
 
+async function fetchImageBlobDirect(url: string, signal?: AbortSignal): Promise<Blob | null> {
+  try {
+    const response = await fetch(url, { credentials: 'include', signal });
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    if (blob.size === 0 || blob.size > MAX_SOURCE_BYTES) return null;
+    if (blob.type && !blob.type.startsWith('image/')) return null;
+    return blob;
+  } catch {
+    return null;
+  }
+}
+
+/** Cross-origin images: ask the background service worker (host permissions apply there). */
+async function fetchImageBlobViaBackground(url: string): Promise<Blob | null> {
+  try {
+    if (typeof browser === 'undefined' || !browser.runtime?.sendMessage) return null;
+    const response = (await browser.runtime.sendMessage({
+      type: 'FETCH_IMAGE',
+      payload: { url },
+    })) as FetchImageResponse | undefined;
+    if (!response?.ok || !response.dataUrl) return null;
+    return await (await fetch(response.dataUrl)).blob();
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Fetch a URL and return a PNG/JPEG data URL (downscaled if needed).
- * Uses the page session (credentials: include), so platform-hosted images work.
+ * Tries a direct fetch with the page session first, then the background
+ * service worker for CORS-blocked hosts.
  */
 export async function imageUrlToDataUrl(
   url: string,
@@ -118,11 +148,9 @@ export async function imageUrlToDataUrl(
       return encodeBitmapBlob(blob);
     }
 
-    const response = await fetch(url, { credentials: 'include', signal });
-    if (!response.ok) return null;
-    const blob = await response.blob();
-    if (blob.size === 0 || blob.size > MAX_SOURCE_BYTES) return null;
-    if (blob.type && !blob.type.startsWith('image/')) return null;
+    const blob =
+      (await fetchImageBlobDirect(url, signal)) ?? (await fetchImageBlobViaBackground(url));
+    if (!blob) return null;
     return encodeBitmapBlob(blob);
   } catch {
     return null;

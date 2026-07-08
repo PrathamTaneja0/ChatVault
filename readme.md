@@ -1,6 +1,22 @@
 # ChatVault Export
 
-Export AI chat conversations from **12 platforms** to beautifully formatted PDF documents. Built with **WXT**, **TypeScript**, and **Manifest V3**.
+Export AI chat conversations from **12 platforms** to beautifully formatted PDF documents — including pasted content, generated documents/artifacts, thinking chains, and **images** — in a single click. Built with **WXT**, **TypeScript**, and **Manifest V3**.
+
+## How extraction works (v2)
+
+ChatVault is **API-first with a DOM fallback**:
+
+1. **API source** (Claude, ChatGPT): the extension reads the same conversation JSON
+   the platform's own web app loads, using your logged-in session — same-origin,
+   read-only GET requests. This captures the *exact* conversation: full pasted text,
+   artifacts, thinking blocks, and image references, with no scraping fragility.
+2. **DOM source** (all platforms): if the API is unavailable (logged out, shape
+   change, unsupported page), the extension scrolls the chat to force lazy messages
+   into the DOM and parses them with per-platform selector chains.
+
+The preview overlay shows which source was used (`API` or `Page` badge).
+Images are fetched with your session, re-encoded to PNG/JPEG, and embedded in both
+the preview and the PDF.
 
 ## Supported Platforms
 
@@ -43,24 +59,28 @@ Load the extension in Chrome: `chrome://extensions` → Developer mode → Load 
 ```
 src/
 ├── entrypoints/
-│   ├── background.ts          # Service worker: toolbar icon + keyboard shortcut routing
+│   ├── background.ts          # Service worker: toolbar/shortcut routing + image fetch relay
 │   └── content/               # Content script: FAB + export orchestration
-├── adapters/                  # Platform-specific DOM extractors (12 total)
+├── sources/                   # API-first extraction (primary path)
+│   ├── claude-api.ts          # claude.ai conversation JSON → Conversation
+│   └── chatgpt-api.ts         # chatgpt.com backend-api mapping tree → Conversation
+├── adapters/                  # Platform-specific DOM extractors (fallback path)
 │   ├── base.ts                # Shared adapter factory
 │   └── *.ts                   # Per-platform selector configs
 ├── core/
-│   ├── schema.ts              # Conversation & Message types
-│   ├── adapter.ts             # Adapter interface, filter, dedupe
+│   ├── schema.ts              # Conversation, Message & Attachment types
+│   ├── adapter.ts             # Adapter interface, filter, adjacent dedupe
 │   ├── registry.ts            # Adapter registration & lookup
 │   ├── normalize.ts           # HTML→markdown, filename helpers
-│   ├── extract-utils.ts       # Scroll sweep, circuit breaker, timeouts
+│   ├── extract-utils.ts       # Scroll sweep, scrollable-container detection, circuit breaker
+│   ├── images.ts              # Image fetch → PNG/JPEG data URL pipeline
 │   ├── html-utils.ts          # Shared HTML escaping
 │   ├── render.ts              # HTML renderer (marked + highlight.js)
 │   ├── export.ts              # pdfmake PDF + JSON export
 │   ├── storage.ts             # chrome.storage.local for options
 │   └── messages.ts            # Extension message types
 ├── ui/
-│   ├── overlay.ts             # Shadow DOM preview (focus trap, Esc)
+│   ├── overlay.ts             # Shadow DOM preview + error panel (focus trap, Esc)
 │   ├── fab.ts                 # Floating action button
 │   └── progress.ts            # Progress bar component
 └── assets/
@@ -89,13 +109,17 @@ flowchart TD
 ### Extraction Pipeline
 
 1. **Detect platform** – `registry.getAdapterForUrl()` matches URL against adapter patterns
-2. **Wait for streaming** (ChatGPT) – polls for stop-button before extraction
-3. **Scroll sweep** – scrolls chat container to force lazy-loaded messages into DOM
-4. **Virtual scroll sweep** (DeepSeek) – scrolls each message into view individually
-5. **Parse messages** – fallback selector chains find role + content per turn
-6. **Normalize** – HTML content converted to markdown via turndown
-7. **Dedupe** – removes duplicate role+content pairs
-8. **Circuit breaker** – enforces 500 message max and 90s timeout
+2. **API attempt** (Claude, ChatGPT) – fetch the conversation JSON with the user's session; exact content, no scraping
+3. **Wait for streaming** (ChatGPT) – polls for stop-button before extraction
+4. **Scroll sweep** (DOM fallback) – holds the scrollable container at the top to load older
+   virtualized turns, then steps down for lazy content
+5. **Virtual scroll sweep** (DeepSeek) – scrolls each message into view individually
+6. **Parse messages** – fallback selector chains find role + content per turn
+7. **Images** – content images fetched (content script → background relay for CORS)
+   and re-encoded to PNG/JPEG data URLs, capped at 1400px / 40 images
+8. **Normalize** – HTML content converted to markdown via turndown
+9. **Dedupe** – removes back-to-back duplicates only (repeated turns are preserved)
+10. **Circuit breaker** – enforces 500 message max and 90s timeout
 
 ### Rendering Pipeline
 
@@ -148,10 +172,16 @@ All processing is local. No data leaves your browser. See [docs/PRIVACY.md](docs
 npm test
 ```
 
-Test suites (62 tests total):
+Test suites (110 tests total):
 
 - **core.test.ts** (36) – schema, dedupe, normalize, render, export, attachments
-- **claude.test.ts** (25) – Claude adapter, hydration, paste/artifact extraction
+- **claude.test.ts** (27) – Claude DOM adapter, hydration, paste/artifact extraction
+- **claude-api.test.ts** (11) – Claude API payload mapping (pastes, artifacts, thinking, images)
+- **chatgpt-api.test.ts** (10) – ChatGPT mapping-tree walk, branches, thoughts, image parts
+- **images.test.ts** (11) – image collection, hydration fallbacks, render/JSON embedding
+- **gemini.test.ts** (4) – Gemini DOM extraction, thought stripping, image capture
+- **extract-utils.test.ts** (9) – scrollable-container detection, adjacent dedupe, filename count
+- **claude-wiggle.test.ts** (2) – artifact output path matching
 - **perplexity.test.ts** (1) – Perplexity role detection
 
 ## Development

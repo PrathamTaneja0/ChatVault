@@ -64,14 +64,21 @@ export function getSelectableMessages(
   return messages;
 }
 
+/**
+ * Drop consecutive duplicates only. Selector double-matches always appear
+ * back-to-back in DOM order; a user legitimately sending the same text twice
+ * at different points in the conversation must be preserved.
+ */
 export function dedupeMessages(messages: Message[]): Message[] {
-  const seen = new Set<string>();
   const result: Message[] = [];
+  let prevKey: string | null = null;
 
   for (const msg of messages) {
-    const key = `${msg.role}:${msg.content.trim()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const attachmentSig =
+      msg.attachments?.map((a) => a.sourceUrl ?? a.content.slice(0, 80)).join('|') ?? '';
+    const key = `${msg.role}:${msg.content.trim()}:${attachmentSig}`;
+    if (key === prevKey) continue;
+    prevKey = key;
     result.push(msg);
   }
 

@@ -37,7 +37,11 @@ async function startExport(): Promise<void> {
 
   const adapter = getAdapterForUrl(window.location.href);
   if (!adapter) {
-    alert('ChatVault Export: This page is not supported.');
+    const errorOverlay = new ExportOverlay();
+    errorOverlay.showError(
+      'This page is not supported. Open a conversation on a supported AI chat platform and try again.',
+      { onClose: () => {} },
+    );
     return;
   }
 
@@ -69,14 +73,27 @@ async function startExport(): Promise<void> {
       onClose: finishExport,
     });
   } catch (err) {
+    const cancelled = signal.aborted;
     const msg =
       err instanceof CircuitBreakerError
         ? err.message
         : err instanceof Error
           ? err.message
           : 'Unknown error';
-    alert(`ChatVault Export failed: ${msg}`);
-    overlay?.closeOverlay();
+
+    if (cancelled || !overlay) {
+      // User cancelled (or overlay already torn down) — nothing to show
+      overlay?.closeOverlay();
+      return;
+    }
+
+    overlay.showError(msg, {
+      onRetry: () => {
+        overlay?.closeOverlay();
+        void startExport();
+      },
+      onClose: finishExport,
+    });
   }
 }
 

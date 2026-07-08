@@ -6,8 +6,9 @@ export default defineConfig({
   manifest: {
     name: 'ChatVault Export',
     description: 'Export AI chat conversations to beautifully formatted PDFs',
-    version: '1.0.0',
-    permissions: ['activeTab', 'storage', 'downloads', 'scripting', 'clipboardRead'],
+    version: '2.0.0',
+    // scripting/downloads were declared but never used; keep the surface minimal
+    permissions: ['activeTab', 'storage', 'clipboardRead'],
     host_permissions: [
       'https://chatgpt.com/*',
       'https://chat.openai.com/*',
@@ -25,6 +26,10 @@ export default defineConfig({
       'https://qwen.ai/*',
       'https://notebooklm.google.com/*',
       'https://aistudio.google.com/*',
+      // Image CDNs used by Gemini and ChatGPT content — fetched by the
+      // background worker to embed images in exports
+      'https://*.googleusercontent.com/*',
+      'https://*.oaiusercontent.com/*',
     ],
     action: {
       default_title: 'ChatVault Export',
