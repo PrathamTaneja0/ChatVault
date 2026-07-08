@@ -4,6 +4,7 @@ import { dedupeMessages } from '../core/adapter';
 import {
   enforceTurnLimit,
   filterNestedMessageElements,
+  findScrollableContainer,
   generateId,
   getPageTitle,
   queryAllFirst,
@@ -19,6 +20,12 @@ import {
   extractClaudeUserPastes,
 } from './claude-extract';
 import { preExtractHydration, isClaudeChatStreamTurn } from './claude-hydrate';
+import { extractClaudeViaApi } from '../sources/claude-api';
+import {
+  collectImageAttachmentsFromElement,
+  findLiveImageElement,
+  hydrateImageAttachments,
+} from '../core/images';
 import { createBaseAdapter } from './base';
 
 const selectors = {
@@ -124,12 +131,27 @@ export const claudeAdapter: PlatformAdapter = {
 
   async extract(document, onProgress, signal) {
     return withCircuitBreaker(async () => {
-      onProgress?.({ phase: 'detecting', message: 'Detecting Claude chat…', percent: 0 });
+      onProgress?.({ phase: 'detecting', message: 'Fetching conversation from Claude…', percent: 5 });
 
-      const container =
-        queryAllFirst(document, selectors.container)[0] ??
-        document.querySelector('main') ??
-        document.body;
+      const location = document.location;
+      if (location?.href) {
+        const viaApi = await extractClaudeViaApi(location, signal).catch(() => null);
+        if (viaApi && viaApi.messages.length > 0) {
+          enforceTurnLimit(viaApi.messages.length);
+          onProgress?.({ phase: 'waiting', message: 'Loading images…', percent: 60 });
+          await hydrateImageAttachments(viaApi, signal);
+          onProgress?.({
+            phase: 'done',
+            message: `Extracted ${viaApi.messages.length} messages`,
+            percent: 100,
+          });
+          return viaApi;
+        }
+      }
+
+      onProgress?.({ phase: 'detecting', message: 'Detecting Claude chat…', percent: 10 });
+
+      const container = findScrollableContainer(document, selectors.container);
 
       await scrollSweep(container, onProgress, signal);
       expandClaudePasteBlocks(document);
@@ -156,7 +178,10 @@ export const claudeAdapter: PlatformAdapter = {
 
           const turn = buildClaudeUserTurnContent(userEl);
           let content = stripSuggestionChipText(turn.text);
-          const attachments = extractClaudeUserPastes(userEl, index, hydrationCache);
+          const attachments = [
+            ...extractClaudeUserPastes(userEl, index, hydrationCache),
+            ...collectImageAttachmentsFromElement(el, 'user', 'claude', index),
+          ];
 
           if (!content && attachments.length > 0) {
             content = attachments.map((a) => a.content).join('\n\n');
@@ -176,24 +201,28 @@ export const claudeAdapter: PlatformAdapter = {
 
         const commentary = extractClaudeAssistantCommentary(el);
         let content = stripSuggestionChipText(commentary.text);
-        const attachments = await extractClaudeAssistantArtifacts(
-          el,
-          document,
-          index,
-          signal,
-          priorUserTexts,
-          hydrationCache,
-        );
+        const attachments = [
+          ...(await extractClaudeAssistantArtifacts(
+            el,
+            document,
+            index,
+            signal,
+            priorUserTexts,
+            hydrationCache,
+          )),
+          ...collectImageAttachmentsFromElement(el, 'assistant', 'claude', index),
+        ];
 
-        if (attachments.length > 0) {
-          const artifactSections = attachments.map((a) => `## ${a.name}\n\n${a.content}`);
+        const artifactAttachments = attachments.filter((a) => a.kind === 'artifact');
+        if (artifactAttachments.length > 0) {
+          const artifactSections = artifactAttachments.map((a) => `## ${a.name}\n\n${a.content}`);
           const artifactText = artifactSections.join('\n\n');
           if (!content.includes(artifactText.slice(0, Math.min(60, artifactText.length)))) {
             content = content ? `${content}\n\n${artifactText}` : artifactText;
           }
         }
 
-        if (!content) continue;
+        if (!content && attachments.length === 0) continue;
 
         const hasThinkingChrome = !!el.querySelector('.thinking-block, [data-is-thinking="true"]');
         const isThinking = hasThinkingChrome && !commentary.text.trim();
@@ -202,7 +231,7 @@ export const claudeAdapter: PlatformAdapter = {
           id: generateId('claude', index),
           role: isThinking ? 'reasoning' : 'assistant',
           content,
-          html: attachments.length > 0 ? undefined : commentary.html,
+          html: artifactAttachments.length > 0 ? undefined : commentary.html,
           isThinking,
           attachments: attachments.length > 0 ? attachments : undefined,
         });
@@ -226,6 +255,10 @@ export const claudeAdapter: PlatformAdapter = {
 
       const modelEl = queryAllFirst(document, selectors.model)[0] ?? null;
 
+      await hydrateImageAttachments({ messages: deduped }, signal, (att) =>
+        findLiveImageElement(document, att.sourceUrl),
+      );
+
       onProgress?.({ phase: 'done', message: `Extracted ${deduped.length} messages`, percent: 100 });
 
       return {
@@ -237,6 +270,7 @@ export const claudeAdapter: PlatformAdapter = {
           url: document.location?.href ?? '',
           exportedAt: new Date().toISOString(),
           messageCount: deduped.length,
+          source: 'dom',
         },
         messages: deduped,
       } satisfies Conversation;

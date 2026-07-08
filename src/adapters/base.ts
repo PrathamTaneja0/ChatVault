@@ -1,12 +1,18 @@
 import type { Conversation, Message, MessageRole } from '../core/schema';
-import type { PlatformAdapter, ProgressCallback, SelectorDiagnostic } from '../core/adapter';
+import type { PlatformAdapter, SelectorDiagnostic } from '../core/adapter';
 import { dedupeMessages } from '../core/adapter';
 import { extractAttachmentsFromElement } from '../core/attachments';
+import {
+  collectImageAttachmentsFromElement,
+  findLiveImageElement,
+  hydrateImageAttachments,
+} from '../core/images';
 import {
   cloneContentWithoutExcluded,
   DEFAULT_ASSISTANT_EXCLUDE_SELECTORS,
   enforceTurnLimit,
   filterNestedMessageElements,
+  findScrollableContainer,
   generateId,
   getPageTitle,
   queryAllFirst,
@@ -80,9 +86,7 @@ export function createBaseAdapter(config: {
       return withCircuitBreaker(async () => {
         onProgress?.({ phase: 'detecting', message: `Detecting ${label} chat…`, percent: 0 });
 
-        const container = queryAllFirst(document, selectors.container)[0]
-          ?? document.querySelector(selectors.container[0] ?? 'body')
-          ?? document.body;
+        const container = findScrollableContainer(document, selectors.container);
 
         if (useVirtualScroll && virtualItemSelector) {
           const { virtualScrollSweep } = await import('../core/extract-utils');
@@ -111,7 +115,10 @@ export function createBaseAdapter(config: {
           let content = clone.textContent?.trim() ?? '';
           content = stripSuggestionChipText(content);
 
-          const attachments = extractAttachmentsFromElement(el, role, id, index);
+          const attachments = [
+            ...extractAttachmentsFromElement(el, role, id, index),
+            ...collectImageAttachmentsFromElement(el, role, id, index),
+          ];
 
           if (!content) return;
 
@@ -158,9 +165,14 @@ export function createBaseAdapter(config: {
             url: document.location?.href ?? '',
             exportedAt: new Date().toISOString(),
             messageCount: deduped.length,
+            source: 'dom',
           },
           messages: deduped,
         };
+
+        await hydrateImageAttachments(conversation, signal, (att) =>
+          findLiveImageElement(document, att.sourceUrl),
+        );
 
         return conversation;
       }, signal);

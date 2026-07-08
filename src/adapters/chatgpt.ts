@@ -1,7 +1,7 @@
 import { createBaseAdapter } from './base';
 import { waitForStreaming } from '../core/extract-utils';
 import type { Conversation } from '../core/schema';
-import type { PlatformAdapter, ProgressCallback } from '../core/adapter';
+import type { PlatformAdapter } from '../core/adapter';
 import { withCircuitBreaker } from '../core/extract-utils';
 
 const selectors = {
@@ -57,8 +57,8 @@ export const chatgptAdapter: PlatformAdapter = {
         signal,
       );
 
-      const container = document.querySelector(selectors.container[0] ?? 'main') ?? document.body;
-      const { scrollSweep } = await import('../core/extract-utils');
+      const { scrollSweep, findScrollableContainer } = await import('../core/extract-utils');
+      const container = findScrollableContainer(document, selectors.container);
       await scrollSweep(container, onProgress, signal, { stepPx: 600, delayMs: 400 });
 
       return base.extract(document, onProgress, signal) as Promise<Conversation>;

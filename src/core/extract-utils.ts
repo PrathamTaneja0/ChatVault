@@ -49,6 +49,68 @@ export function enforceTurnLimit(count: number): void {
   }
 }
 
+/** Cheap scrollability check (no style computation). */
+export function isElementScrollable(el: Element): boolean {
+  return el.scrollHeight > el.clientHeight + 40;
+}
+
+function findLargestScrollableDescendant(root: Element): Element | null {
+  let best: Element | null = null;
+  let bestHeight = 0;
+  for (const el of root.querySelectorAll('*')) {
+    if (el.clientHeight < 200) continue;
+    if (!isElementScrollable(el)) continue;
+    if (el.clientHeight > bestHeight) {
+      best = el;
+      bestHeight = el.clientHeight;
+    }
+  }
+  return best;
+}
+
+/**
+ * Resolve the element that actually scrolls the chat. Candidate selectors are
+ * checked directly, then their descendants, then their ancestors — the first
+ * genuinely scrollable element wins. Falls back to the first candidate match.
+ */
+export function findScrollableContainer(
+  doc: Document,
+  candidateSelectors: string[],
+): Element {
+  const candidates: Element[] = [];
+  for (const sel of candidateSelectors) {
+    if (!sel) continue;
+    doc.querySelectorAll(sel).forEach((el) => candidates.push(el));
+  }
+
+  for (const el of candidates) {
+    if (isElementScrollable(el)) return el;
+  }
+
+  for (const el of candidates) {
+    const descendant = findLargestScrollableDescendant(el);
+    if (descendant) return descendant;
+  }
+
+  for (const el of candidates) {
+    let parent = el.parentElement;
+    while (parent && parent !== doc.body) {
+      if (isElementScrollable(parent)) return parent;
+      parent = parent.parentElement;
+    }
+  }
+
+  return candidates[0] ?? doc.scrollingElement ?? doc.body;
+}
+
+/**
+ * Force lazy/virtualized messages into the DOM.
+ *
+ * Chat UIs open scrolled to the bottom and load *older* turns when the user
+ * scrolls up, so phase 1 holds the container at the top until its scrollHeight
+ * stops growing. Phase 2 then steps back down for lists that also mount
+ * content downward.
+ */
 export async function scrollSweep(
   container: Element,
   onProgress?: ProgressCallback,
@@ -56,15 +118,38 @@ export async function scrollSweep(
   options: { stepPx?: number; delayMs?: number; maxIterations?: number } = {},
 ): Promise<void> {
   const { stepPx = 800, delayMs = 300, maxIterations = 200 } = options;
-  let iterations = 0;
-  let lastScrollTop = -1;
 
   onProgress?.({
     phase: 'scrolling',
-    message: 'Scrolling to load all messages…',
+    message: 'Loading conversation history…',
     percent: 10,
   });
 
+  let stable = 0;
+  let lastHeight = -1;
+  for (let i = 0; i < maxIterations && stable < 3; i++) {
+    if (signal?.aborted) throw new CircuitBreakerError('Extraction cancelled');
+
+    container.scrollTop = 0;
+    await sleep(delayMs, signal);
+
+    const height = container.scrollHeight;
+    if (height === lastHeight) {
+      stable++;
+    } else {
+      stable = 0;
+    }
+    lastHeight = height;
+
+    onProgress?.({
+      phase: 'scrolling',
+      message: `Loading earlier messages… (${i + 1})`,
+      percent: Math.min(10 + i * 0.5, 25),
+    });
+  }
+
+  let iterations = 0;
+  let lastScrollTop = -1;
   while (iterations < maxIterations) {
     if (signal?.aborted) throw new CircuitBreakerError('Extraction cancelled');
 
@@ -79,7 +164,7 @@ export async function scrollSweep(
     onProgress?.({
       phase: 'scrolling',
       message: `Scrolling… (${iterations})`,
-      percent: Math.min(10 + iterations * 0.5, 40),
+      percent: Math.min(25 + iterations * 0.5, 40),
     });
   }
 
@@ -214,7 +299,7 @@ export function filterNestedMessageElements(elements: Element[]): Element[] {
   );
 }
 
-export function sortElementsByDomOrder(elements: Element[]): Element[] {
+export function sortElementsByDomOrder<T extends Element>(elements: T[]): T[] {
   return [...elements].sort((a, b) => {
     const pos = a.compareDocumentPosition(b);
     if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;

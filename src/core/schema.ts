@@ -1,6 +1,6 @@
 export type MessageRole = 'user' | 'assistant' | 'system' | 'reasoning';
 
-export type AttachmentKind = 'paste' | 'file' | 'artifact';
+export type AttachmentKind = 'paste' | 'file' | 'artifact' | 'image';
 
 export interface Attachment {
   id: string;
@@ -8,7 +8,17 @@ export interface Attachment {
   name?: string;
   content: string;
   mimeType?: string;
+  /** data: URL (PNG/JPEG) for embedding images in preview and PDF */
+  dataUrl?: string;
+  /** URL the asset was originally fetched from */
+  sourceUrl?: string;
+  /** Intrinsic pixel size of an embedded image (set during hydration) */
+  width?: number;
+  height?: number;
 }
+
+/** How the conversation was captured: platform API (exact) or DOM scraping (fallback). */
+export type ExtractionSource = 'api' | 'dom';
 
 export interface Message {
   id: string;
@@ -32,6 +42,8 @@ export interface ConversationMetadata {
   url: string;
   exportedAt: string;
   messageCount: number;
+  /** api = fetched from the platform's own backend; dom = scraped from the page */
+  source?: ExtractionSource;
 }
 
 export interface Conversation {
