@@ -449,7 +449,7 @@ function climbArtifactHeaderFromTitle(titleNode: Element, panel: Element): Eleme
   let header: Element | null = titleNode;
 
   for (let i = 0; i < 4 && header?.parentElement && header.parentElement !== panel; i++) {
-    const parent = header.parentElement;
+    const parent: HTMLElement = header.parentElement;
     if (ARTIFACT_HEADER_STOP_SELECTORS.some((sel) => parent.matches(sel))) break;
     header = parent;
   }

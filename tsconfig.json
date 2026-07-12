@@ -9,5 +9,5 @@
     "resolveJsonModule": true,
     "esModuleInterop": true
   },
-  "include": ["src/**/*", "tests/**/*", "wxt.config.ts"]
+  "include": ["src/**/*", "tests/**/*", "wxt.config.ts", ".wxt/wxt.d.ts"]
 }

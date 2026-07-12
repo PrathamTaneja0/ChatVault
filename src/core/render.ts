@@ -69,6 +69,9 @@ function contentIncludesAttachment(mainContent: string, att: Attachment): boolea
 }
 
 function shouldRenderAttachment(att: Attachment, mainContent: string): boolean {
+  if (att.kind === 'image') {
+    return !!(att.dataUrl || att.sourceUrl);
+  }
   if (att.kind === 'paste') {
     if (isPasteLabelOnly(att.content)) return false;
     return !contentIncludesAttachment(mainContent, att);
@@ -78,7 +81,42 @@ function shouldRenderAttachment(att: Attachment, mainContent: string): boolean {
   return !contentIncludesAttachment(mainContent, att);
 }
 
+/** Widest an image can render inside A4 margins (px at 96dpi ≈ 160mm). */
+const MAX_PDF_IMAGE_WIDTH_PX = 600;
+
+function renderImageAttachment(att: Attachment): string {
+  const name = att.name?.trim() || 'Image';
+
+  if (!att.dataUrl) {
+    return `
+    <div class="message-attachment message-attachment-image image-not-embedded">
+      <h4 class="attachment-title">Image</h4>
+      <div class="attachment-body">${escapeHtml(name)} (could not be embedded)</div>
+    </div>
+  `;
+  }
+
+  let sizeAttrs = '';
+  if (att.width && att.height) {
+    const displayWidth = Math.min(att.width, MAX_PDF_IMAGE_WIDTH_PX);
+    const displayHeight = Math.round((displayWidth / att.width) * att.height);
+    sizeAttrs = ` width="${displayWidth}" height="${displayHeight}"`;
+  }
+  const caption =
+    name && name !== 'Image'
+      ? `<div class="image-caption">${escapeHtml(name)}</div>`
+      : '';
+
+  return `
+    <div class="message-attachment message-attachment-image">
+      <img src="${att.dataUrl}" alt="${escapeHtml(name)}"${sizeAttrs} />
+      ${caption}
+    </div>
+  `;
+}
+
 function renderSingleAttachment(att: Attachment): string {
+  if (att.kind === 'image') return renderImageAttachment(att);
   const title = att.name ?? (att.kind === 'paste' ? 'Pasted content' : 'Attachment');
   const body = marked.parse(att.content) as string;
   return `
@@ -101,8 +139,8 @@ function renderAttachmentsHtml(msg: Message, kinds: AttachmentKind[]): string {
 function renderMessageHtml(msg: Message, index: number): string {
   const content = normalizeContent(msg);
   const rendered = marked.parse(content) as string;
-  const pasteHtml = renderAttachmentsHtml(msg, ['paste']);
-  const artifactHtml = renderAttachmentsHtml(msg, ['artifact', 'file']);
+  const pasteHtml = renderAttachmentsHtml(msg, ['paste', 'image']);
+  const artifactHtml = renderAttachmentsHtml(msg, ['artifact', 'file', 'image']);
   const bodyHtml =
     msg.role === 'user' ? `${pasteHtml}${rendered}` : `${rendered}${artifactHtml}`;
   const anchor = `msg-${index + 1}`;

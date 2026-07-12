@@ -1,5 +1,5 @@
 import { dedupeMessages } from '../core/adapter';
-import type { PlatformAdapter, ProgressCallback } from '../core/adapter';
+import type { PlatformAdapter } from '../core/adapter';
 import type { Conversation, Message } from '../core/schema';
 import { extractAttachmentsFromElement } from '../core/attachments';
 import {

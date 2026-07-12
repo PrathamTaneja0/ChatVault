@@ -14,7 +14,18 @@ export interface ExportResult {
 }
 
 export function buildExportJson(conversation: Conversation, options: ExportOptions): string {
-  const messages = filterMessages(conversation.messages, options);
+  const messages = filterMessages(conversation.messages, options).map((msg) => {
+    if (!msg.attachments?.length) return msg;
+    return {
+      ...msg,
+      // Embedded image bytes are omitted from JSON to keep it readable/copyable
+      attachments: msg.attachments.map((att) =>
+        att.dataUrl
+          ? { ...att, dataUrl: `[embedded image ${att.width ?? '?'}x${att.height ?? '?'}]` }
+          : att,
+      ),
+    };
+  });
   const payload = {
     metadata: {
       ...conversation.metadata,
@@ -46,7 +57,7 @@ export function generateFilename(
     title: sanitizeFilenamePart(title, 80),
     date: formatFilenameDate(conversation.metadata.exportedAt),
     model: slugify(conversation.metadata.model ?? 'unknown', 20),
-    count: String(conversation.messages.length),
+    count: String(filterMessages(conversation.messages, options).length),
   };
   const base = applyFilenameTemplate(template, vars);
   return `${base}.pdf`;

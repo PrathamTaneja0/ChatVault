@@ -357,6 +357,61 @@ const OVERLAY_STYLES = `
     text-align: center;
     color: #a3a3a3;
   }
+  .cv-error {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 48px 32px;
+    text-align: center;
+  }
+  .cv-error-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(239, 68, 68, 0.14);
+    color: #f87171;
+    font-size: 22px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cv-error-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #ececec;
+    margin: 0;
+  }
+  .cv-error-message {
+    font-size: 13px;
+    color: #a3a3a3;
+    margin: 0;
+    max-width: 480px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .cv-source-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-left: 10px;
+    vertical-align: middle;
+  }
+  .cv-source-badge-api {
+    background: rgba(16, 185, 129, 0.16);
+    color: #6ee7b7;
+  }
+  .cv-source-badge-dom {
+    background: rgba(245, 158, 11, 0.16);
+    color: #fbbf24;
+  }
   ${progressStyles}
 `;
 
@@ -396,6 +451,33 @@ export class ExportOverlay {
   }
 
   updateProgress: ((p: ExtractionProgress) => void) | null = null;
+
+  showError(message: string, callbacks: { onRetry?: () => void; onClose: () => void }): void {
+    this.mount();
+    this.extractingCancelCallback = callbacks.onClose;
+
+    const title = this.shadow!.querySelector('.cv-overlay-title');
+    if (title) title.textContent = 'Export failed';
+
+    const body = this.shadow!.querySelector('.cv-overlay-body')!;
+    body.innerHTML = `
+      <div class="cv-error" role="alert">
+        <div class="cv-error-icon" aria-hidden="true">!</div>
+        <p class="cv-error-title">Something went wrong</p>
+        <p class="cv-error-message">${escapeHtml(message)}</p>
+      </div>
+    `;
+
+    const footer = this.shadow!.querySelector('.cv-overlay-footer')!;
+    footer.innerHTML = `
+      ${callbacks.onRetry ? '<button class="cv-btn cv-btn-primary" data-action="retry">Try again</button>' : ''}
+      <button class="cv-btn cv-btn-ghost" data-action="close">Close</button>
+    `;
+    footer.querySelector('[data-action="retry"]')?.addEventListener('click', () => {
+      callbacks.onRetry?.();
+    });
+    footer.querySelector('[data-action="close"]')?.addEventListener('click', () => this.closeOverlay());
+  }
 
   showPreview(
     conversation: Conversation,
@@ -497,7 +579,13 @@ export class ExportOverlay {
 
     const title = this.shadow!.querySelector('.cv-overlay-title')!;
     const msgCount = selectable.length;
-    title.textContent = `${conversation.metadata.title ?? 'Chat Export'} · ${msgCount} messages`;
+    const source = conversation.metadata.source;
+    const sourceBadge = source
+      ? `<span class="cv-source-badge cv-source-badge-${source}" title="${
+          source === 'api' ? 'Captured from the platform API (exact)' : 'Captured from the page DOM'
+        }">${source === 'api' ? 'API' : 'Page'}</span>`
+      : '';
+    title.innerHTML = `${escapeHtml(conversation.metadata.title ?? 'Chat Export')} · ${msgCount} messages${sourceBadge}`;
 
     const panel = this.shadow!.querySelector('.cv-overlay-panel') as HTMLElement;
     this.trapFocus(panel);
