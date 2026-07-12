@@ -54,6 +54,13 @@ const OVERLAY_STYLES = `
     background: #1e1e1e;
     flex-shrink: 0;
   }
+  .cv-overlay-titlebox {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+  }
   .cv-overlay-header h2 {
     margin: 0;
     font-size: 15px;
@@ -62,7 +69,7 @@ const OVERLAY_STYLES = `
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: calc(100% - 48px);
+    min-width: 0;
   }
   .cv-overlay-close {
     background: none;
@@ -402,7 +409,6 @@ const OVERLAY_STYLES = `
     text-transform: uppercase;
     padding: 2px 8px;
     border-radius: 999px;
-    margin: 0 10px;
     flex-shrink: 0;
     cursor: default;
     transition: filter 0.15s ease, transform 0.15s ease;
@@ -415,7 +421,7 @@ const OVERLAY_STYLES = `
     content: attr(data-tip);
     position: absolute;
     top: calc(100% + 8px);
-    right: 0;
+    left: 0;
     background: #2d2d33;
     border: 1px solid #3f3f46;
     color: #e5e5e5;
@@ -671,9 +677,10 @@ export class ExportOverlay {
     const msgCount = selectable.length;
     title.textContent = `${conversation.metadata.title ?? 'Chat Export'} · ${msgCount} messages`;
 
-    // Badge lives beside the title (h2 clips overflow, which would cut the tooltip)
-    const header = this.shadow!.querySelector('.cv-overlay-header')!;
-    header.querySelector('.cv-source-badge')?.remove();
+    // Badge sits right after the title text. It's a sibling of the h2 (not
+    // inside it) because the h2 clips overflow, which would cut the tooltip.
+    const titlebox = this.shadow!.querySelector('.cv-overlay-titlebox')!;
+    titlebox.querySelector('.cv-source-badge')?.remove();
     const source = conversation.metadata.source;
     if (source) {
       const badge = document.createElement('span');
@@ -685,7 +692,7 @@ export class ExportOverlay {
           ? 'Captured from the platform API — exact conversation data'
           : 'Captured from the page — used when no API is available',
       );
-      header.insertBefore(badge, header.querySelector('.cv-overlay-close'));
+      titlebox.appendChild(badge);
     }
 
     const panel = this.shadow!.querySelector('.cv-overlay-panel') as HTMLElement;
@@ -1006,7 +1013,9 @@ export class ExportOverlay {
     backdrop.innerHTML = `
       <div class="cv-overlay-panel" role="dialog" aria-modal="true" aria-label="ChatVault Export Preview">
         <div class="cv-overlay-header">
-          <h2 class="cv-overlay-title">Exporting…</h2>
+          <div class="cv-overlay-titlebox">
+            <h2 class="cv-overlay-title">Exporting…</h2>
+          </div>
           <button class="cv-overlay-close" aria-label="Close">&times;</button>
         </div>
         <div class="cv-overlay-body"></div>

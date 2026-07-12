@@ -1,4 +1,6 @@
-import iconUrl from '../../public/icon/48.png';
+// 128px source downscaled to 52px stays sharp on high-DPI displays;
+// the 48px asset upscaled to 52px is what made the FAB blurry.
+import iconUrl from '../../public/icon/128.png';
 
 const FAB_STYLES = `
   .cv-fab {
