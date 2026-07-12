@@ -9,10 +9,9 @@ Grabs the *entire* chat — full pasted content, generated documents, thinking c
 - ⚡ **One click** — floating button, `Ctrl+Shift+E`, or the toolbar popup
 - 🎯 **API-accurate** — reads the same data Claude/ChatGPT load themselves, with DOM fallback everywhere else
 - 📋 **Nothing missing** — pasted text, artifacts/documents, reasoning chains
-- 🌗 **Light & dark PDF themes** — toggle right in the preview
 - 🎨 **Notion-style code blocks** — dark panels with full syntax colors
 - ✂️ **Pick your messages** — export all or just a selection
-- 🕵️ **Private by design** — zero servers, zero tracking, minimal permissions
+- 🕵️ **Private by design** — zero servers, zero tracking, zero external requests
 
 ## 🤖 Supported platforms
 
@@ -31,7 +30,7 @@ Then: `chrome://extensions` → **Developer mode** → **Load unpacked** → sel
 
 1. Open a conversation on a supported platform
 2. Click the floating **export** button (bottom-right) or press `Ctrl+Shift+E`
-3. Preview → pick messages, toggle thinking & theme 🌗
+3. Preview → pick messages, toggle thinking chains
 4. **Copy JSON** 📋 or **Download PDF** 📄
 
 > 💚 **API** badge = exact capture from the platform's own backend · 🟡 **Page** badge = read from the page (used when no API exists, e.g. Gemini, or when logged out)

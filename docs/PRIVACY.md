@@ -32,12 +32,9 @@ All processing happens entirely within your browser:
 
 ## Third-Party Services
 
-When rendering PDF previews, the extension may load:
-
-- **Google Fonts** (Inter, JetBrains Mono) for typography
-- **highlight.js CDN** for syntax highlighting styles
-
-These are loaded only during export preview and do not transmit your chat content.
+None. Fonts, styles, and PDF generation are fully bundled — the extension
+makes no requests to any server other than the AI platform you are exporting
+from (using your own session).
 
 ## Data Retention
 

@@ -6,7 +6,7 @@ export default defineConfig({
   manifest: {
     name: 'ChatVault Export',
     description: 'Export AI chat conversations to beautifully formatted PDFs',
-    version: '2.1.0',
+    version: '2.2.0',
     // scripting/downloads were declared but never used; keep the surface minimal
     permissions: ['activeTab', 'storage', 'clipboardRead'],
     host_permissions: [

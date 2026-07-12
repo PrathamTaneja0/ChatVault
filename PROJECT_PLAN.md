@@ -106,7 +106,23 @@ extract()
 - [ ] Each remaining platform: FAB export still works (DOM path)
 - [ ] Kill-switch check: block `/api/` in DevTools → DOM fallback still exports
 
-## 8. v2.1 revisions (user feedback round, 2026-07-12)
+## 8. v2.2 revisions (second feedback round, 2026-07-12)
+
+- Extraction responsiveness: scroll sweep capped at 12s with a bounded
+  top-hold phase; Claude hydration polls trimmed under a 20s budget; panels
+  opened by hydration are dismissed even after a cancel. Close/× always
+  aborts everything immediately.
+- CSP cleanup: page-world script injections removed (blocked by claude.ai
+  CSP anyway — they only logged errors); the fallback never clicks the
+  native Download control; preview renders via srcdoc; no external font or
+  style requests remain.
+- UX: document theme toggle removed (light-only docs, dark code blocks);
+  Copy shows a toast instead of relabeling; source badge gained an instant
+  tooltip + hover; FAB tooltip says "Export chat".
+- Icons: glossy-orb document mark restored and refined; popup icon crisp
+  (64px asset at 32px display).
+
+## 9. v2.1 revisions (user feedback round, 2026-07-12)
 
 - Scroll sweep targets only containers that hold message elements (fixes
   Gemini sweeping the recent-chats sidebar).

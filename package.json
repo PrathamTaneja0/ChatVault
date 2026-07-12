@@ -1,6 +1,6 @@
 {
   "name": "chatvault-export",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Export AI chat conversations to PDF from 12 platforms",
   "type": "module",
   "private": true,
