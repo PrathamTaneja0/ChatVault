@@ -10,7 +10,7 @@ const FAB_STYLES = `
     height: 52px;
     padding: 0;
     border: none;
-    border-radius: 14px;
+    border-radius: 50%;
     background: transparent;
     cursor: pointer;
     display: flex;
@@ -26,7 +26,7 @@ const FAB_STYLES = `
     width: 52px;
     height: 52px;
     display: block;
-    border-radius: 14px;
+    border-radius: 50%;
     pointer-events: none;
     user-select: none;
     -webkit-user-drag: none;

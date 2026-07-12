@@ -2,8 +2,9 @@
 /**
  * Generate the extension icon set from a single SVG source.
  *
- * Design: a chat bubble with an export (down) arrow on a slate rounded
- * square — simple, sharp, and legible from 16px to 128px.
+ * Design: the classic ChatVault glossy dark orb with a white document sheet
+ * (folded corner, text lines) and an indigo export-arrow badge — legible
+ * from 16px to 128px.
  *
  * Usage: npm run icons
  */
@@ -19,35 +20,45 @@ mkdirSync(outDir, { recursive: true });
 const ICON_SVG = `
 <svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#28344e"/>
-      <stop offset="1" stop-color="#0e1424"/>
+    <radialGradient id="orb" cx="0.34" cy="0.28" r="1">
+      <stop offset="0" stop-color="#4d5566"/>
+      <stop offset="0.5" stop-color="#252b38"/>
+      <stop offset="1" stop-color="#0c0f16"/>
+    </radialGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="rgba(255,255,255,0.38)"/>
+      <stop offset="1" stop-color="rgba(255,255,255,0)"/>
     </linearGradient>
-    <linearGradient id="arrow" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="badge" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#818cf8"/>
       <stop offset="1" stop-color="#5b5ff0"/>
     </linearGradient>
   </defs>
 
-  <!-- Background: rounded square, subtle vertical gradient + hairline edge -->
-  <rect x="2" y="2" width="124" height="124" rx="30" fill="url(#bg)"/>
-  <rect x="3.5" y="3.5" width="121" height="121" rx="28.5" fill="none"
-        stroke="rgba(255,255,255,0.09)" stroke-width="3"/>
+  <!-- Glossy orb -->
+  <circle cx="64" cy="64" r="61" fill="url(#orb)"/>
+  <circle cx="64" cy="64" r="60" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="2"/>
+  <ellipse cx="64" cy="32" rx="42" ry="19" fill="url(#sheen)"/>
 
-  <!-- Chat bubble (filled, tail bottom-left) -->
-  <path d="M46 28h36c12.15 0 22 9.85 22 22v14c0 12.15-9.85 22-22 22H62.5
-           L45 100.5c-1.3 1.15-3.35.23-3.35-1.51V85.4C32.7 82.4 24 73.9 24 64V50
-           c0-12.15 9.85-22 22-22z"
-        fill="#f4f6fb"/>
+  <!-- Document sheet with folded corner -->
+  <path d="M45 30h26.5L86 44.5V90a6 6 0 0 1-6 6H45a6 6 0 0 1-6-6V36a6 6 0 0 1 6-6z"
+        fill="#f5f7fb"/>
+  <path d="M71.5 30L86 44.5H75.5a4 4 0 0 1-4-4V30z" fill="#c7d0e2"/>
 
-  <!-- Export arrow -->
-  <path d="M64 40v24" stroke="url(#arrow)" stroke-width="9" stroke-linecap="round"/>
-  <path d="M51 56l13 13 13-13" fill="none" stroke="url(#arrow)"
-        stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Text lines -->
+  <rect x="47" y="54" width="24" height="4.5" rx="2.25" fill="#a9b4c9"/>
+  <rect x="47" y="65" width="30" height="4.5" rx="2.25" fill="#a9b4c9"/>
+  <rect x="47" y="76" width="20" height="4.5" rx="2.25" fill="#c4cddd"/>
+
+  <!-- Export badge -->
+  <circle cx="85" cy="86" r="15" fill="url(#badge)" stroke="rgba(12,15,22,0.55)" stroke-width="3"/>
+  <path d="M85 78.5v10.5" stroke="#ffffff" stroke-width="3.6" stroke-linecap="round"/>
+  <path d="M79.5 84.5l5.5 5.5 5.5-5.5" fill="none" stroke="#ffffff"
+        stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
 `;
 
-const SIZES = [16, 48, 128];
+const SIZES = [16, 32, 48, 64, 128];
 
 for (const size of SIZES) {
   const png = await sharp(Buffer.from(ICON_SVG), { density: (72 * size) / 128 })
