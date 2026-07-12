@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChatVault Export</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="header">
+      <img class="logo" src="/icon/48.png" alt="" width="34" height="34" />
+      <div class="header-text">
+        <h1>ChatVault Export</h1>
+        <span class="version" id="version"></span>
+      </div>
+      <a
+        class="github-link"
+        id="github-link"
+        href="https://github.com/PrathamTaneja0/ChatVault"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="View on GitHub"
+        aria-label="View ChatVault on GitHub"
+      >
+        <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true" fill="currentColor">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
+            0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01
+            1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95
+            0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0
+            1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0
+            3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01
+            8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+      </a>
+    </header>
+
+    <main class="body">
+      <button class="export-btn" id="export-btn">
+        Export this chat
+        <span class="shortcut"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd></span>
+      </button>
+      <p class="hint" id="hint" role="status"></p>
+
+      <section class="section">
+        <h2>How to use</h2>
+        <ol class="steps">
+          <li>Open a conversation on a supported AI platform</li>
+          <li>Click the floating export button (bottom-right) or press the shortcut</li>
+          <li>Review the preview — pick messages, toggle thinking &amp; theme</li>
+          <li>Copy JSON or download the PDF</li>
+        </ol>
+      </section>
+
+      <section class="section">
+        <h2>Supported platforms</h2>
+        <div class="platforms">
+          <span>ChatGPT</span><span>Claude</span><span>Gemini</span>
+          <span>DeepSeek</span><span>Grok</span><span>Perplexity</span>
+          <span>Copilot</span><span>Poe</span><span>Kimi</span>
+          <span>Qwen</span><span>NotebookLM</span><span>AI Studio</span>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Everything stays in your browser — nothing is uploaded.</span>
+    </footer>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -1,10 +1,8 @@
 import type { ExtensionMessage } from '../core/messages';
 
+// Toolbar clicks open the popup (default_popup); only the keyboard shortcut
+// needs background routing.
 export default defineBackground(() => {
-  browser.action.onClicked.addListener(async () => {
-    await triggerExportOnActiveTab();
-  });
-
   browser.commands.onCommand.addListener(async (command) => {
     if (command !== 'export-chat') return;
     await triggerExportOnActiveTab();

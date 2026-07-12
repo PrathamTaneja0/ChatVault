@@ -1,0 +1,163 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 320px;
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  background: #16161a;
+  color: #ececec;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: #1d1d22;
+  border-bottom: 1px solid #2a2a30;
+}
+
+.logo {
+  border-radius: 9px;
+  flex-shrink: 0;
+}
+
+.header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.header-text h1 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.version {
+  font-size: 11px;
+  color: #8b8b93;
+}
+
+.github-link {
+  color: #a3a3ab;
+  display: flex;
+  padding: 6px;
+  border-radius: 8px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.github-link:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.body {
+  padding: 14px 16px 6px;
+}
+
+.export-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 10px;
+  background: #6366f1;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.export-btn:hover {
+  background: #767af5;
+}
+
+.export-btn:active {
+  background: #575ae8;
+}
+
+.shortcut {
+  display: inline-flex;
+  gap: 2px;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+kbd {
+  font-family: inherit;
+  font-size: 10.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.hint {
+  min-height: 0;
+  margin: 8px 2px 0;
+  font-size: 12px;
+  color: #fbbf24;
+  display: none;
+}
+
+.hint.visible {
+  display: block;
+}
+
+.section {
+  margin-top: 16px;
+}
+
+.section h2 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8b8b93;
+}
+
+.steps {
+  margin: 0;
+  padding-left: 18px;
+  color: #c9c9d1;
+}
+
+.steps li {
+  margin-bottom: 4px;
+}
+
+.platforms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.platforms span {
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #232329;
+  border: 1px solid #2e2e36;
+  color: #b9b9c1;
+}
+
+.footer {
+  padding: 10px 16px 12px;
+  font-size: 11px;
+  color: #6f6f77;
+  border-top: 1px solid #232329;
+  margin-top: 12px;
+}
