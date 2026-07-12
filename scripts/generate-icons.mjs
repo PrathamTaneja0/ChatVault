@@ -1,74 +1,59 @@
 #!/usr/bin/env node
-/** Generate minimal PNG icons for the extension */
+/**
+ * Generate the extension icon set from a single SVG source.
+ *
+ * Design: a chat bubble with an export (down) arrow on a slate rounded
+ * square — simple, sharp, and legible from 16px to 128px.
+ *
+ * Usage: npm run icons
+ */
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { deflateSync } from 'node:zlib';
+import sharp from 'sharp';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const outDir = join(__dirname, '..', 'public', 'icon');
 mkdirSync(outDir, { recursive: true });
 
-function crc32(buf) {
-  let c = 0xffffffff;
-  const table = [];
-  for (let n = 0; n < 256; n++) {
-    let cv = n;
-    for (let k = 0; k < 8; k++) cv = cv & 1 ? 0xedb88320 ^ (cv >>> 1) : cv >>> 1;
-    table[n] = cv;
-  }
-  for (let i = 0; i < buf.length; i++) c = table[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
-  return (c ^ 0xffffffff) >>> 0;
-}
+const ICON_SVG = `
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#28344e"/>
+      <stop offset="1" stop-color="#0e1424"/>
+    </linearGradient>
+    <linearGradient id="arrow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#818cf8"/>
+      <stop offset="1" stop-color="#5b5ff0"/>
+    </linearGradient>
+  </defs>
 
-function chunk(type, data) {
-  const len = Buffer.alloc(4);
-  len.writeUInt32BE(data.length);
-  const typeB = Buffer.from(type);
-  const crcData = Buffer.concat([typeB, data]);
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(crcData));
-  return Buffer.concat([len, typeB, data, crc]);
-}
+  <!-- Background: rounded square, subtle vertical gradient + hairline edge -->
+  <rect x="2" y="2" width="124" height="124" rx="30" fill="url(#bg)"/>
+  <rect x="3.5" y="3.5" width="121" height="121" rx="28.5" fill="none"
+        stroke="rgba(255,255,255,0.09)" stroke-width="3"/>
 
-function createPng(size) {
-  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0);
-  ihdr.writeUInt32BE(size, 4);
-  ihdr[8] = 8;
-  ihdr[9] = 2;
-  ihdr[10] = 0;
-  ihdr[11] = 0;
-  ihdr[12] = 0;
+  <!-- Chat bubble (filled, tail bottom-left) -->
+  <path d="M46 28h36c12.15 0 22 9.85 22 22v14c0 12.15-9.85 22-22 22H62.5
+           L45 100.5c-1.3 1.15-3.35.23-3.35-1.51V85.4C32.7 82.4 24 73.9 24 64V50
+           c0-12.15 9.85-22 22-22z"
+        fill="#f4f6fb"/>
 
-  const raw = [];
-  for (let y = 0; y < size; y++) {
-    raw.push(0);
-    for (let x = 0; x < size; x++) {
-      const t = y / size;
-      const r = Math.round(79 + (5 - 79) * t);
-      const g = Math.round(70 + (150 - 70) * t);
-      const b = Math.round(229 + (105 - 229) * t);
-      const cx = size / 2;
-      const cy = size / 2;
-      const r2 = size * 0.45;
-      const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
-      if (dist <= r2) raw.push(r, g, b);
-      else raw.push(255, 255, 255);
-    }
-  }
+  <!-- Export arrow -->
+  <path d="M64 40v24" stroke="url(#arrow)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M51 56l13 13 13-13" fill="none" stroke="url(#arrow)"
+        stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+`;
 
-  const compressed = deflateSync(Buffer.from(raw));
-  return Buffer.concat([
-    signature,
-    chunk('IHDR', ihdr),
-    chunk('IDAT', compressed),
-    chunk('IEND', Buffer.alloc(0)),
-  ]);
-}
+const SIZES = [16, 48, 128];
 
-for (const size of [16, 48, 128]) {
-  writeFileSync(join(outDir, `${size}.png`), createPng(size));
-  console.log(`Created icon/${size}.png`);
+for (const size of SIZES) {
+  const png = await sharp(Buffer.from(ICON_SVG), { density: (72 * size) / 128 })
+    .resize(size, size)
+    .png()
+    .toBuffer();
+  writeFileSync(join(outDir, `${size}.png`), png);
+  console.log(`Created icon/${size}.png (${png.length} bytes)`);
 }
