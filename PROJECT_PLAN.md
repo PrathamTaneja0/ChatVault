@@ -97,9 +97,22 @@ extract()
 
 - [ ] Claude: chat with long paste → paste appears in full in PDF/JSON
 - [ ] Claude: chat with artifact/document → artifact body exported
-- [ ] Claude: chat with uploaded + generated images → images embedded in PDF
 - [ ] Claude: logged-in long chat (100+ turns) → all turns present, API badge shown
 - [ ] ChatGPT: normal chat → full history via API
-- [ ] Gemini: long chat → older messages present after sweep; images embedded
+- [ ] Gemini: long chat → older turns load (conversation scrolls, not the sidebar)
+- [ ] Code-heavy chat → dark syntax-colored code blocks in preview and PDF
+- [ ] Theme toggle → dark PDF pages with light text; setting persists
+- [ ] Toolbar icon → popup opens; Export-this-chat works; GitHub link opens
 - [ ] Each remaining platform: FAB export still works (DOM path)
 - [ ] Kill-switch check: block `/api/` in DevTools → DOM fallback still exports
+
+## 8. v2.1 revisions (user feedback round, 2026-07-12)
+
+- Scroll sweep targets only containers that hold message elements (fixes
+  Gemini sweeping the recent-chats sidebar).
+- Images/files removed from exports by request — text, pastes, thinking,
+  and artifacts only; host permissions trimmed back to the AI sites.
+- Themed documents: light/dark toggle (persisted), redesigned header and
+  role pills, One Dark code blocks in both themes and in the PDF.
+- Dark overlay scrollbars; redesigned icon set (SVG → sharp); toolbar
+  popup with usage guide + GitHub link replaces direct-trigger click.
