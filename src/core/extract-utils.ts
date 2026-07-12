@@ -54,12 +54,16 @@ export function isElementScrollable(el: Element): boolean {
   return el.scrollHeight > el.clientHeight + 40;
 }
 
-function findLargestScrollableDescendant(root: Element): Element | null {
+function findLargestScrollableDescendant(
+  root: Element,
+  containsContent: (el: Element) => boolean,
+): Element | null {
   let best: Element | null = null;
   let bestHeight = 0;
   for (const el of root.querySelectorAll('*')) {
     if (el.clientHeight < 200) continue;
     if (!isElementScrollable(el)) continue;
+    if (!containsContent(el)) continue;
     if (el.clientHeight > bestHeight) {
       best = el;
       bestHeight = el.clientHeight;
@@ -69,14 +73,24 @@ function findLargestScrollableDescendant(root: Element): Element | null {
 }
 
 /**
- * Resolve the element that actually scrolls the chat. Candidate selectors are
- * checked directly, then their descendants, then their ancestors — the first
- * genuinely scrollable element wins. Falls back to the first candidate match.
+ * Resolve the element that actually scrolls the chat.
+ *
+ * A page usually has several scrollable regions (conversation, recent-chats
+ * sidebar, settings panes). Only elements that CONTAIN the conversation's
+ * message elements qualify — without that check, Gemini's sidebar (the first
+ * scrollable match under `main`) gets swept instead of the chat itself.
+ * Candidates are checked directly, then their descendants, then ancestors;
+ * falls back to the first content-bearing candidate.
  */
 export function findScrollableContainer(
   doc: Document,
   candidateSelectors: string[],
+  messageSelectors: string[] = [],
 ): Element {
+  const contentSelector = messageSelectors.filter(Boolean).join(', ');
+  const containsContent = (el: Element): boolean =>
+    !contentSelector || !!el.querySelector(contentSelector);
+
   const candidates: Element[] = [];
   for (const sel of candidateSelectors) {
     if (!sel) continue;
@@ -84,23 +98,30 @@ export function findScrollableContainer(
   }
 
   for (const el of candidates) {
-    if (isElementScrollable(el)) return el;
+    if (isElementScrollable(el) && containsContent(el)) return el;
   }
 
   for (const el of candidates) {
-    const descendant = findLargestScrollableDescendant(el);
+    if (!containsContent(el)) continue;
+    const descendant = findLargestScrollableDescendant(el, containsContent);
     if (descendant) return descendant;
   }
 
   for (const el of candidates) {
+    if (!containsContent(el)) continue;
     let parent = el.parentElement;
     while (parent && parent !== doc.body) {
-      if (isElementScrollable(parent)) return parent;
+      if (isElementScrollable(parent) && containsContent(parent)) return parent;
       parent = parent.parentElement;
     }
   }
 
-  return candidates[0] ?? doc.scrollingElement ?? doc.body;
+  return (
+    candidates.find(containsContent) ??
+    candidates[0] ??
+    doc.scrollingElement ??
+    doc.body
+  );
 }
 
 /**

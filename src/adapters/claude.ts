@@ -151,7 +151,11 @@ export const claudeAdapter: PlatformAdapter = {
 
       onProgress?.({ phase: 'detecting', message: 'Detecting Claude chat…', percent: 10 });
 
-      const container = findScrollableContainer(document, selectors.container);
+      const container = findScrollableContainer(
+        document,
+        selectors.container,
+        selectors.message,
+      );
 
       await scrollSweep(container, onProgress, signal);
       expandClaudePasteBlocks(document);

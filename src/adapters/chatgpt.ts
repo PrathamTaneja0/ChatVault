@@ -76,7 +76,7 @@ export const chatgptAdapter: PlatformAdapter = {
       }
 
       const { scrollSweep, findScrollableContainer } = await import('../core/extract-utils');
-      const container = findScrollableContainer(document, selectors.container);
+      const container = findScrollableContainer(document, selectors.container, selectors.message);
       await scrollSweep(container, onProgress, signal, { stepPx: 600, delayMs: 400 });
 
       return base.extract(document, onProgress, signal) as Promise<Conversation>;

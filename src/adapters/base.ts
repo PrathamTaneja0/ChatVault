@@ -86,7 +86,11 @@ export function createBaseAdapter(config: {
       return withCircuitBreaker(async () => {
         onProgress?.({ phase: 'detecting', message: `Detecting ${label} chat…`, percent: 0 });
 
-        const container = findScrollableContainer(document, selectors.container);
+        const container = findScrollableContainer(
+          document,
+          selectors.container,
+          selectors.message,
+        );
 
         if (useVirtualScroll && virtualItemSelector) {
           const { virtualScrollSweep } = await import('../core/extract-utils');

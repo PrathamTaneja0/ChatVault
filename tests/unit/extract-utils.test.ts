@@ -46,6 +46,49 @@ describe('findScrollableContainer', () => {
     expect(found).toBe(document.getElementById('main'));
   });
 
+  it('skips a scrollable sidebar that holds no messages (Gemini regression)', () => {
+    // Gemini: the recent-chats sidebar scrolls, the chat history also scrolls —
+    // only the latter contains user-query/model-response elements.
+    document.body.innerHTML = `
+      <main id="main">
+        <div id="sidebar"><div class="chat-title">Old chat 1</div></div>
+        <div id="history">
+          <user-query>Hello</user-query>
+          <model-response>Hi!</model-response>
+        </div>
+      </main>
+    `;
+    const main = document.getElementById('main')!;
+    const sidebar = document.getElementById('sidebar')!;
+    const history = document.getElementById('history')!;
+    makeScrollable(main, 100, 100);
+    makeScrollable(sidebar, 4000, 800);
+    makeScrollable(history, 9000, 800);
+
+    const found = findScrollableContainer(
+      document,
+      ['main'],
+      ['user-query', 'model-response'],
+    );
+    expect(found).toBe(history);
+  });
+
+  it('prefers a message-bearing candidate over a scrollable one without messages', () => {
+    document.body.innerHTML = `
+      <nav id="nav-scroller"></nav>
+      <main id="main"><user-query>Q</user-query></main>
+    `;
+    makeScrollable(document.getElementById('nav-scroller')!, 5000, 600);
+    makeScrollable(document.getElementById('main')!, 100, 100);
+
+    const found = findScrollableContainer(
+      document,
+      ['#nav-scroller', 'main'],
+      ['user-query'],
+    );
+    expect(found).toBe(document.getElementById('main'));
+  });
+
   it('isElementScrollable requires meaningful overflow', () => {
     const el = document.createElement('div');
     makeScrollable(el, 500, 490);
