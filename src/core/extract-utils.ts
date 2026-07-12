@@ -132,13 +132,23 @@ export function findScrollableContainer(
  * stops growing. Phase 2 then steps back down for lists that also mount
  * content downward.
  */
+/** Upper bound for one full sweep — keeps huge/animated chats from stalling the UI. */
+const SWEEP_TIME_BUDGET_MS = 12_000;
+const SWEEP_TOP_HOLD_MAX_ITERATIONS = 15;
+
 export async function scrollSweep(
   container: Element,
   onProgress?: ProgressCallback,
   signal?: AbortSignal,
-  options: { stepPx?: number; delayMs?: number; maxIterations?: number } = {},
+  options: { stepPx?: number; delayMs?: number; maxIterations?: number; timeBudgetMs?: number } = {},
 ): Promise<void> {
-  const { stepPx = 800, delayMs = 300, maxIterations = 200 } = options;
+  const {
+    stepPx = 800,
+    delayMs = 250,
+    maxIterations = 200,
+    timeBudgetMs = SWEEP_TIME_BUDGET_MS,
+  } = options;
+  const deadline = Date.now() + timeBudgetMs;
 
   onProgress?.({
     phase: 'scrolling',
@@ -146,9 +156,11 @@ export async function scrollSweep(
     percent: 10,
   });
 
+  // Phase 1: hold at the top so upward-virtualized lists load older turns.
+  // Bounded hard — some chat UIs animate, so scrollHeight never fully settles.
   let stable = 0;
   let lastHeight = -1;
-  for (let i = 0; i < maxIterations && stable < 3; i++) {
+  for (let i = 0; i < SWEEP_TOP_HOLD_MAX_ITERATIONS && stable < 2 && Date.now() < deadline; i++) {
     if (signal?.aborted) throw new CircuitBreakerError('Extraction cancelled');
 
     container.scrollTop = 0;
@@ -165,13 +177,14 @@ export async function scrollSweep(
     onProgress?.({
       phase: 'scrolling',
       message: `Loading earlier messages… (${i + 1})`,
-      percent: Math.min(10 + i * 0.5, 25),
+      percent: Math.min(10 + i * 1, 25),
     });
   }
 
+  // Phase 2: step down to mount lazily-rendered content below.
   let iterations = 0;
   let lastScrollTop = -1;
-  while (iterations < maxIterations) {
+  while (iterations < maxIterations && Date.now() < deadline) {
     if (signal?.aborted) throw new CircuitBreakerError('Extraction cancelled');
 
     const scrollTop = container.scrollTop;
@@ -190,7 +203,7 @@ export async function scrollSweep(
   }
 
   container.scrollTop = 0;
-  await sleep(200, signal);
+  await sleep(150, signal);
 }
 
 export async function virtualScrollSweep(

@@ -320,9 +320,9 @@ describe('claudeAdapter', () => {
       </main>
     `;
 
-    // Simulate Claude triggering download-file when Download is clicked during hydration
-    const downloadBtn = document.querySelector('button[aria-label*="Download"]')!;
-    downloadBtn.addEventListener('click', () => {
+    // Simulate Claude fetching download-file when the artifact panel opens
+    const viewBtn = document.querySelector('button[aria-label^="View "]')!;
+    viewBtn.addEventListener('click', () => {
       void window.fetch(downloadUrl);
     });
 
@@ -333,8 +333,7 @@ describe('claudeAdapter', () => {
     expect(conversation.messages[1].attachments?.[0]?.content).toContain('Thomas Meyer');
   });
 
-  it('blocks native anchor downloads while fetching artifact via Download button', async () => {
-    const downloadUrl = 'https://claude.ai/api/download-file?path=hilti.md';
+  it('never clicks the native Download control (CSP-safe fallback)', async () => {
     const originalFetch = globalThis.fetch.bind(globalThis);
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
@@ -352,25 +351,15 @@ describe('claudeAdapter', () => {
     document.body.innerHTML = `
       <div class="group/artifact-block">
         <div class="artifact-block-cell" data-testid="artifact-card">
+          <a href="/api/download-file?path=hilti.md">Download</a>
           <button aria-label="Download Hilti vapi prompt deutsch">Download</button>
         </div>
       </div>
     `;
 
     const downloadBtn = document.querySelector('button[aria-label*="Download"]') as HTMLElement;
-    let anchorClicked = false;
-    downloadBtn.addEventListener('click', () => {
-      void window.fetch(downloadUrl);
-      const anchor = document.createElement('a');
-      anchor.href = 'blob:text/plain,blocked';
-      anchor.download = 'hilti.md';
-      anchor.addEventListener('click', () => {
-        anchorClicked = true;
-      });
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-    });
+    const clickSpy = vi.fn();
+    downloadBtn.addEventListener('click', clickSpy);
 
     const capture = createDownloadFileCapture();
     capture.install();
@@ -379,8 +368,10 @@ describe('claudeAdapter', () => {
     const content = await promise;
     capture.uninstall();
 
+    // Body is recovered from the download-file URL in the card markup…
     expect(content).toContain('Thomas Meyer');
-    expect(anchorClicked).toBe(false);
+    // …without ever clicking the native control (which would save a file).
+    expect(clickSpy).not.toHaveBeenCalled();
   });
 
   it('prefers download-file URL from artifact card markup', () => {

@@ -821,16 +821,11 @@ export class ExportOverlay {
     const iframe = this.shadow.querySelector('.cv-overlay-preview') as HTMLIFrameElement;
     if (!iframe) return;
 
-    const doc = iframe.contentDocument;
-    if (!doc) return;
-    doc.open();
-    doc.write(html);
-    doc.close();
-
     iframe.onload = () => {
       requestAnimationFrame(() => this.scalePreview());
     };
-    requestAnimationFrame(() => this.scalePreview());
+    // srcdoc (not document.write) keeps the sandboxed frame quiet in the console
+    iframe.srcdoc = html;
   }
 
   private setupPreviewResizeObserver(): void {

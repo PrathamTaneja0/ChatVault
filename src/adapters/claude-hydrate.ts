@@ -2,8 +2,10 @@ import type { ProgressCallback } from '../core/adapter';
 import { isArtifactLabelOnly, sleep, sortElementsByDomOrder } from '../core/extract-utils';
 import { fetchArtifactViaWiggleApi, resetClaudeWiggleCache } from './claude-wiggle';
 
-const HYDRATE_POLL_MS = [150, 200, 250, 300, 350, 400, 450, 500];
-const PASTE_HYDRATE_POLL_MS = [150, 200, 250, 300, 400, 500, 600, 800, 1000, 1200];
+const HYDRATE_POLL_MS = [150, 200, 250, 300, 400];
+const PASTE_HYDRATE_POLL_MS = [150, 200, 300, 400, 500, 700];
+/** Hard ceiling for the whole hydration pass — keeps the page responsive. */
+const HYDRATION_TIME_BUDGET_MS = 20_000;
 const MIN_PASTE_BODY_LEN = 400;
 const MIN_ARTIFACT_BODY_LEN = 100;
 
@@ -46,9 +48,6 @@ const ARTIFACT_BODY_SELECTORS = [
   ...PASTE_BODY_SELECTORS,
 ];
 
-const PAGE_FETCH_CAPTURE_ATTR = 'data-chatvault-fetch-capture';
-const PAGE_DOWNLOAD_BLOCK_ATTR = 'data-chatvault-download-block';
-const DOWNLOAD_FILE_EVENT = 'chatvault-download-file';
 
 export function normalizeCacheKey(key: string): string {
   return key.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -740,51 +739,12 @@ export function findDownloadFileUrlNearButton(button: HTMLElement): string | und
   return undefined;
 }
 
-function installPageWorldDownloadBlocker(): void {
-  const root = document.documentElement;
-  if (root.getAttribute(PAGE_DOWNLOAD_BLOCK_ATTR) === '1') return;
-  root.setAttribute(PAGE_DOWNLOAD_BLOCK_ATTR, '1');
-
-  const script = document.createElement('script');
-  script.textContent = `
-(function() {
-  if (window.__chatVaultDownloadBlockInstalled) return;
-  window.__chatVaultDownloadBlockInstalled = true;
-
-  var origAnchorClick = HTMLAnchorElement.prototype.click;
-  HTMLAnchorElement.prototype.click = function() {
-    if (this.hasAttribute('download') || (this.href && this.href.indexOf('blob:') === 0)) return;
-    return origAnchorClick.call(this);
-  };
-
-  document.addEventListener('click', function(event) {
-    var node = event.target;
-    while (node) {
-      if (node.tagName === 'A') {
-        var href = node.href || '';
-        if (node.hasAttribute('download') || href.indexOf('blob:') === 0) {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          return;
-        }
-      }
-      node = node.parentElement;
-    }
-  }, true);
-})();
-  `.trim();
-  (document.head || document.documentElement).appendChild(script);
-  script.remove();
-}
-
-function installNativeDownloadBlocker(): () => void {
-  installPageWorldDownloadBlocker();
-  return () => {};
-}
-
 /**
- * Last-resort artifact fetch: wiggle API, then intercepted network capture.
- * Never triggers a browser save dialog.
+ * Last-resort artifact fetch: wiggle API, then any download-file URL already
+ * observed (captured fetches, card markup, Performance API entries).
+ *
+ * Never clicks the native Download control: the page's CSP blocks our
+ * interceptors, so a real click would save a file to the user's disk.
  */
 export async function fetchArtifactContentFallback(
   title: string,
@@ -795,7 +755,7 @@ export async function fetchArtifactContentFallback(
   const fromWiggle = await fetchArtifactViaWiggleApi(title, signal);
   if (fromWiggle.length >= MIN_ARTIFACT_BODY_LEN) return fromWiggle;
 
-  const fromCapture = await fetchDownloadAfterClick(capture, signal);
+  const fromCapture = await fetchObservedDownloadFile(capture, signal);
   if (fromCapture.length >= MIN_ARTIFACT_BODY_LEN) return fromCapture;
 
   if (downloadBtn) {
@@ -806,26 +766,8 @@ export async function fetchArtifactContentFallback(
     }
   }
 
-  if (!downloadBtn) return '';
-
-  const restoreDownloads = installNativeDownloadBlocker();
-  const preventNativeClick = (event: Event): void => {
-    event.preventDefault();
-  };
-
-  try {
-    downloadBtn.addEventListener('click', preventNativeClick, true);
-    downloadBtn.click();
-    downloadBtn.removeEventListener('click', preventNativeClick, true);
-    await sleep(300, signal);
-    return await fetchDownloadAfterClick(capture, signal);
-  } finally {
-    restoreDownloads();
-  }
+  return '';
 }
-
-/** @deprecated Use fetchArtifactContentFallback */
-export const fetchArtifactViaDownloadButton = fetchArtifactContentFallback;
 
 export interface DownloadFileCapture {
   install(): void;
@@ -833,44 +775,6 @@ export interface DownloadFileCapture {
   getBody(url: string): string | undefined;
   getLatestUrl(): string | undefined;
   getLatestBody(): string | undefined;
-}
-
-function installPageWorldFetchCapture(eventName: string): void {
-  const root = document.documentElement;
-  if (root.getAttribute(PAGE_FETCH_CAPTURE_ATTR) === eventName) return;
-  root.setAttribute(PAGE_FETCH_CAPTURE_ATTR, eventName);
-
-  const script = document.createElement('script');
-  script.textContent = `
-(function() {
-  if (window.__chatVaultDownloadCaptureInstalled) return;
-  if (!window.fetch) return;
-  window.__chatVaultDownloadCaptureInstalled = true;
-  var orig = window.fetch.bind(window);
-  window.fetch = function() {
-    var args = arguments;
-    var input = args[0];
-    var url = typeof input === 'string' ? input : (input && input.url) || '';
-    return orig.apply(window, args).then(function(res) {
-      if (url.indexOf('download-file') !== -1) {
-        try {
-          var clone = res.clone();
-          clone.text().then(function(text) {
-            if (text && text.trim()) {
-              document.dispatchEvent(new CustomEvent('${eventName}', {
-                detail: { url: url, body: text.trim() }
-              }));
-            }
-          }).catch(function() {});
-        } catch (e) {}
-      }
-      return res;
-    });
-  };
-})();
-  `.trim();
-  (document.head || document.documentElement).appendChild(script);
-  script.remove();
 }
 
 export function getLatestDownloadFileUrlFromPerformance(): string | undefined {
@@ -893,7 +797,8 @@ export async function waitForDownloadFileUrl(
   return getLatestDownloadFileUrlFromPerformance();
 }
 
-export async function fetchDownloadAfterClick(
+/** Read an artifact body from download-file requests we've already observed. */
+export async function fetchObservedDownloadFile(
   capture: DownloadFileCapture,
   signal?: AbortSignal,
 ): Promise<string> {
@@ -915,23 +820,18 @@ export async function fetchDownloadAfterClick(
   return '';
 }
 
+/**
+ * Observe download-file requests made from the content-script world.
+ * (Page-world interception is impossible: the sites' CSP blocks injected
+ * inline scripts, so we only patch our own isolated-world fetch.)
+ */
 export function createDownloadFileCapture(): DownloadFileCapture {
   const bodies = new Map<string, string>();
   let latestUrl: string | undefined;
   let originalFetch: typeof fetch = window.fetch.bind(window);
 
-  const onPageDownload = (event: Event): void => {
-    const detail = (event as CustomEvent<{ url: string; body: string }>).detail;
-    if (!detail?.url || !detail.body) return;
-    bodies.set(detail.url, detail.body);
-    latestUrl = detail.url;
-  };
-
   return {
     install() {
-      installPageWorldFetchCapture(DOWNLOAD_FILE_EVENT);
-      document.addEventListener(DOWNLOAD_FILE_EVENT, onPageDownload);
-
       originalFetch = window.fetch.bind(window);
       window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
         const response = await originalFetch(input, init);
@@ -957,7 +857,6 @@ export function createDownloadFileCapture(): DownloadFileCapture {
       };
     },
     uninstall() {
-      document.removeEventListener(DOWNLOAD_FILE_EVENT, onPageDownload);
       window.fetch = originalFetch;
     },
     getBody(url: string) {
@@ -1133,14 +1032,14 @@ export async function preExtractHydration(
 ): Promise<HydratedContentCache> {
   const cache = new HydratedContentCache();
   const capture = createDownloadFileCapture();
+  const deadline = Date.now() + HYDRATION_TIME_BUDGET_MS;
 
   try {
     resetClaudeWiggleCache();
-    installPageWorldDownloadBlocker();
 
     const pasteButtons = findAllPasteThumbnailButtons(document);
     for (let i = 0; i < pasteButtons.length; i++) {
-      if (signal?.aborted) break;
+      if (signal?.aborted || Date.now() > deadline) break;
       onProgress?.({
         phase: 'waiting',
         message: `Loading pasted content ${i + 1} of ${pasteButtons.length}…`,
@@ -1156,7 +1055,7 @@ export async function preExtractHydration(
 
     const artifactCards = findAllArtifactBlockCards(document);
     for (let i = 0; i < artifactCards.length; i++) {
-      if (signal?.aborted) break;
+      if (signal?.aborted || Date.now() > deadline) break;
       onProgress?.({
         phase: 'waiting',
         message: `Opening document ${i + 1} of ${artifactCards.length}…`,
@@ -1167,11 +1066,12 @@ export async function preExtractHydration(
       const content = await hydrateArtifactCard(artifactCards[i], document, capture, signal);
       if (content) cache.set(cacheKeyForArtifact(title), content);
     }
-
-    await dismissPasteContentPanel(document, signal);
-    await dismissArtifactPanel(document, signal);
   } finally {
     capture.uninstall();
+    // Close any panels hydration opened — even when the user cancelled
+    // mid-pass (the abort signal must not block the cleanup clicks).
+    await dismissPasteContentPanel(document).catch(() => {});
+    await dismissArtifactPanel(document).catch(() => {});
   }
 
   return cache;
