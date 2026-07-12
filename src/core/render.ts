@@ -45,7 +45,6 @@ export type RenderMode = 'export' | 'preview';
 const PREVIEW_SCREEN_CSS = `
 @media screen {
   html {
-    background: transparent;
     overflow: hidden;
   }
   body {
@@ -53,7 +52,7 @@ const PREVIEW_SCREEN_CSS = `
     padding: 25.4mm;
     max-width: 210mm;
     min-height: 297mm;
-    background: #fff;
+    background: var(--cv-page-bg);
     box-sizing: border-box;
     overflow: hidden;
   }
@@ -120,10 +119,24 @@ function renderMessageHtml(msg: Message, index: number): string {
   `;
 }
 
-function renderConversationTitle(title: string): string {
+function renderDocumentHeader(conversation: Conversation, exportedCount: number): string {
+  const { title, platformLabel, model, exportedAt } = conversation.metadata;
+  const metaParts = [
+    platformLabel,
+    model,
+    formatDate(exportedAt),
+    `${exportedCount} message${exportedCount === 1 ? '' : 's'}`,
+  ].filter(Boolean) as string[];
+
+  const meta = metaParts
+    .map((part) => escapeHtml(part))
+    .join('<span class="doc-meta-sep">·</span>');
+
   return `
-    <header class="conversation-title">
-      <h1>${escapeHtml(title)}</h1>
+    <header class="doc-header">
+      <p class="doc-eyebrow">Conversation export</p>
+      <h1>${escapeHtml(title ?? 'Chat Export')}</h1>
+      <p class="doc-meta">${meta}</p>
     </header>
   `;
 }
@@ -135,12 +148,13 @@ export function renderConversationHtml(
 ): string {
   const messages = filterMessages(conversation.messages, options);
   const title = conversation.metadata.title ?? 'Chat Export';
+  const theme = options.theme ?? 'light';
 
   const body = messages.map((m, i) => renderMessageHtml(m, i)).join('\n');
   const previewCss = mode === 'preview' ? PREVIEW_SCREEN_CSS : '';
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="${theme}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -148,11 +162,10 @@ export function renderConversationHtml(
   <style>${printCss}${previewCss}</style>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css">
 </head>
 <body>
   <main class="conversation">
-    ${renderConversationTitle(title)}
+    ${renderDocumentHeader(conversation, messages.length)}
     ${body}
   </main>
 </body>

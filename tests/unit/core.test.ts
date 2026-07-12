@@ -262,12 +262,40 @@ describe('renderConversationHtml', () => {
     expect(html).toContain('message-role message-role-assistant');
   });
 
-  it('styles message body text in black', () => {
+  it('styles message body text through theme variables', () => {
     const html = renderConversationHtml(baseConversation, DEFAULT_EXPORT_OPTIONS);
     const printCss = readFileSync(resolve(__dirname, '../../src/assets/print.css'), 'utf-8');
     expect(html).toContain('class="message-body"');
     expect(printCss).toContain('.message-body');
-    expect(printCss).toContain('color: #000000');
+    expect(printCss).toContain('var(--cv-text-body)');
+    expect(printCss).toContain("html[data-theme='dark']");
+  });
+
+  it('renders the light theme by default and dark when requested', () => {
+    const light = renderConversationHtml(baseConversation, DEFAULT_EXPORT_OPTIONS);
+    expect(light).toContain('data-theme="light"');
+
+    const dark = renderConversationHtml(baseConversation, {
+      ...DEFAULT_EXPORT_OPTIONS,
+      theme: 'dark',
+    });
+    expect(dark).toContain('data-theme="dark"');
+  });
+
+  it('renders a document header with title and metadata', () => {
+    const html = renderConversationHtml(baseConversation, DEFAULT_EXPORT_OPTIONS);
+    expect(html).toContain('doc-header');
+    expect(html).toContain('Test Chat');
+    expect(html).toContain('Gemini');
+    expect(html).toContain('2 messages');
+  });
+
+  it('ships a dark One Dark code theme instead of a CDN stylesheet', () => {
+    const html = renderConversationHtml(baseConversation, DEFAULT_EXPORT_OPTIONS);
+    const printCss = readFileSync(resolve(__dirname, '../../src/assets/print.css'), 'utf-8');
+    expect(html).not.toContain('cdnjs.cloudflare.com');
+    expect(printCss).toContain('.hljs-keyword');
+    expect(printCss).toContain('--cv-code-bg');
   });
 
   it('does not render a table of contents even with many messages', () => {

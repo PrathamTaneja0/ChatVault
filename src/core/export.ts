@@ -61,27 +61,117 @@ export function extractMainHtml(html: string): string {
 
 type PdfMakeContent = Record<string, unknown>;
 
-export async function htmlToPdfMakeContent(html: string): Promise<PdfMakeContent[]> {
+interface PdfPalette {
+  pageBg: string;
+  text: string;
+  heading: string;
+  muted: string;
+  faint: string;
+  link: string;
+  user: string;
+  assistant: string;
+  reasoning: string;
+  surface: string;
+  codeBg: string;
+  codeText: string;
+}
+
+const PDF_PALETTES: Record<'light' | 'dark', PdfPalette> = {
+  light: {
+    pageBg: '#ffffff',
+    text: '#1f2937',
+    heading: '#111827',
+    muted: '#6b7280',
+    faint: '#9ca3af',
+    link: '#4f46e5',
+    user: '#4f46e5',
+    assistant: '#059669',
+    reasoning: '#6b7280',
+    surface: '#f9fafb',
+    codeBg: '#16161e',
+    codeText: '#e2e8f0',
+  },
+  dark: {
+    pageBg: '#0f1117',
+    text: '#d7dbe2',
+    heading: '#f3f4f6',
+    muted: '#9aa2af',
+    faint: '#6b7280',
+    link: '#818cf8',
+    user: '#818cf8',
+    assistant: '#34d399',
+    reasoning: '#9aa2af',
+    surface: '#171a21',
+    codeBg: '#16161e',
+    codeText: '#e2e8f0',
+  },
+};
+
+/** One Dark token colors — the hljs class names become pdfmake style names. */
+const HLJS_PDF_STYLES: Record<string, Record<string, unknown>> = {
+  'hljs-comment': { color: '#7f848e', italics: true },
+  'hljs-quote': { color: '#7f848e', italics: true },
+  'hljs-keyword': { color: '#c678dd' },
+  'hljs-doctag': { color: '#c678dd' },
+  'hljs-formula': { color: '#c678dd' },
+  'hljs-selector-tag': { color: '#c678dd' },
+  'hljs-string': { color: '#98c379' },
+  'hljs-regexp': { color: '#98c379' },
+  'hljs-addition': { color: '#98c379' },
+  'hljs-number': { color: '#d19a66' },
+  'hljs-literal': { color: '#d19a66' },
+  'hljs-title': { color: '#61afef' },
+  'hljs-section': { color: '#61afef' },
+  function_: { color: '#61afef' },
+  class_: { color: '#e5c07b' },
+  'hljs-type': { color: '#e5c07b' },
+  'hljs-built_in': { color: '#e5c07b' },
+  'hljs-class': { color: '#e5c07b' },
+  'hljs-attr': { color: '#e06c75' },
+  'hljs-attribute': { color: '#e06c75' },
+  'hljs-variable': { color: '#e06c75' },
+  'hljs-template-variable': { color: '#e06c75' },
+  'hljs-name': { color: '#e06c75' },
+  'hljs-selector-class': { color: '#e06c75' },
+  'hljs-selector-id': { color: '#e06c75' },
+  'hljs-deletion': { color: '#e06c75' },
+  'hljs-symbol': { color: '#56b6c2' },
+  'hljs-bullet': { color: '#56b6c2' },
+  'hljs-link': { color: '#56b6c2' },
+  'hljs-meta': { color: '#56b6c2' },
+  'hljs-selector-attr': { color: '#56b6c2' },
+  'hljs-selector-pseudo': { color: '#56b6c2' },
+  'hljs-subst': { color: '#56b6c2' },
+  'hljs-emphasis': { italics: true },
+  'hljs-strong': { bold: true },
+};
+
+export async function htmlToPdfMakeContent(
+  html: string,
+  theme: 'light' | 'dark' = 'light',
+): Promise<PdfMakeContent[]> {
   const htmlToPdfmakeModule = await import('html-to-pdfmake');
   const htmlToPdfmake = (htmlToPdfmakeModule as { default?: (html: string, options?: Record<string, unknown>) => unknown }).default
     ?? htmlToPdfmakeModule;
 
+  const palette = PDF_PALETTES[theme];
   const mainHtml = extractMainHtml(html);
   const result = (htmlToPdfmake as (html: string, options?: Record<string, unknown>) => unknown)(mainHtml, {
     window,
     removeExtraBlanks: true,
     tableAutoSize: true,
     defaultStyles: {
-      h1: { fontSize: 20, bold: true, margin: [0, 0, 0, 12] },
-      h2: { fontSize: 16, bold: true, margin: [0, 12, 0, 6] },
-      h3: { fontSize: 14, bold: true, margin: [0, 10, 0, 4] },
-      p: { margin: [0, 0, 0, 8], lineHeight: 1.4 },
+      h1: { fontSize: 19, bold: true, color: palette.heading, margin: [0, 0, 0, 10] },
+      h2: { fontSize: 15, bold: true, color: palette.heading, margin: [0, 12, 0, 6] },
+      h3: { fontSize: 13, bold: true, color: palette.heading, margin: [0, 10, 0, 4] },
+      p: { margin: [0, 0, 0, 8], lineHeight: 1.45 },
       ul: { margin: [0, 0, 0, 8] },
       ol: { margin: [0, 0, 0, 8] },
       li: { margin: [0, 0, 0, 4] },
-      pre: { margin: [0, 0, 0, 8], fillColor: '#f4f4f8' },
-      code: { fontSize: 9 },
-      a: { color: '#2563eb', decoration: 'underline' },
+      pre: { margin: [0, 4, 0, 10], fillColor: palette.codeBg, color: palette.codeText },
+      code: { fontSize: 8.5 },
+      blockquote: { color: palette.muted, fillColor: palette.surface, margin: [8, 0, 0, 8] },
+      a: { color: palette.link, decoration: 'underline' },
     },
   });
 
@@ -91,6 +181,9 @@ export async function htmlToPdfMakeContent(html: string): Promise<PdfMakeContent
   }
   return [result as PdfMakeContent];
 }
+
+const A4_WIDTH_PT = 595.28;
+const A4_HEIGHT_PT = 841.89;
 
 export async function downloadViaPdfMake(
   conversation: Conversation,
@@ -105,8 +198,11 @@ export async function downloadViaPdfMake(
   const vfs = fontsModule.pdfMake?.vfs ?? fontsModule.default?.pdfMake?.vfs ?? {};
   pdfMakeModule.vfs = vfs;
 
+  const theme = options.theme ?? 'light';
+  const palette = PDF_PALETTES[theme];
+
   const { html } = buildExportDocument(conversation, options);
-  const bodyContent = await htmlToPdfMakeContent(html);
+  const bodyContent = await htmlToPdfMakeContent(html, theme);
 
   const docDefinition = {
     info: {
@@ -115,11 +211,16 @@ export async function downloadViaPdfMake(
     },
     pageSize: 'A4' as const,
     pageMargins: [72, 72, 72, 72] as [number, number, number, number],
+    background: () => ({
+      canvas: [
+        { type: 'rect', x: 0, y: 0, w: A4_WIDTH_PT, h: A4_HEIGHT_PT, color: palette.pageBg },
+      ],
+    }),
     footer: (currentPage: number) => ({
       text: String(currentPage),
       alignment: 'center' as const,
       fontSize: 9,
-      color: '#6b7280',
+      color: palette.muted,
       margin: [0, 10, 0, 0] as [number, number, number, number],
     }),
     content: bodyContent,
@@ -127,12 +228,19 @@ export async function downloadViaPdfMake(
       font: 'Roboto',
       fontSize: 10,
       lineHeight: 1.4,
-      color: '#1f2937',
+      color: palette.text,
     },
     styles: {
-      'message-role-user': { color: '#4F46E5', bold: true },
-      'message-role-assistant': { color: '#059669', bold: true },
-      'message-role-reasoning': { color: '#6b7280', bold: true, italics: true },
+      'doc-eyebrow': { color: palette.faint, fontSize: 7.5, bold: true, characterSpacing: 1 },
+      'doc-meta': { color: palette.muted, fontSize: 9 },
+      'doc-meta-sep': { color: palette.faint },
+      'message-role-user': { color: palette.user, bold: true },
+      'message-role-assistant': { color: palette.assistant, bold: true },
+      'message-role-reasoning': { color: palette.reasoning, bold: true, italics: true },
+      'message-model': { color: palette.faint, fontSize: 8.5 },
+      'message-time': { color: palette.faint, fontSize: 8.5 },
+      'attachment-title': { color: palette.muted, fontSize: 8.5, bold: true },
+      ...HLJS_PDF_STYLES,
     },
   };
 

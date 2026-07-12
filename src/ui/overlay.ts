@@ -151,12 +151,24 @@ const OVERLAY_STYLES = `
     cursor: pointer;
     accent-color: #6366f1;
   }
+  .cv-toggle-group {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-left: auto;
+  }
+  .cv-toggle-label {
+    font-size: 11px;
+    color: #737373;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-right: 2px;
+  }
   .cv-view-toggle {
     display: inline-flex;
     border: 1px solid #404040;
     border-radius: 8px;
     overflow: hidden;
-    margin-left: auto;
   }
   .cv-view-toggle button {
     font-size: 12px;
@@ -296,7 +308,7 @@ const OVERLAY_STYLES = `
     width: ${A4_PREVIEW_WIDTH_PX}px;
     border: 1px solid #555558;
     display: block;
-    background: #fff;
+    background: transparent;
     overflow: hidden;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
     border-radius: 2px;
@@ -412,6 +424,29 @@ const OVERLAY_STYLES = `
     background: rgba(245, 158, 11, 0.16);
     color: #fbbf24;
   }
+  /* Dark scrollbars matching the overlay chrome */
+  .cv-overlay-panel *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .cv-overlay-panel *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .cv-overlay-panel *::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+    border-radius: 6px;
+    border: 2px solid #1a1a1a;
+  }
+  .cv-overlay-panel *::-webkit-scrollbar-thumb:hover {
+    background: #52525b;
+  }
+  .cv-overlay-panel *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  .cv-overlay-panel * {
+    scrollbar-width: thin;
+    scrollbar-color: #3f3f46 #1a1a1a;
+  }
   ${progressStyles}
 `;
 
@@ -507,9 +542,17 @@ export class ExportOverlay {
           <input type="checkbox" data-opt-thinking checked />
           Include thinking/reasoning chains
         </label>
-        <div class="cv-view-toggle" role="group" aria-label="Preview view">
-          <button type="button" data-view="json" class="active">JSON</button>
-          <button type="button" data-view="pdf">PDF</button>
+        <div class="cv-toggle-group">
+          <span class="cv-toggle-label">Theme</span>
+          <div class="cv-view-toggle" role="group" aria-label="Document theme">
+            <button type="button" data-doc-theme="light" class="active">Light</button>
+            <button type="button" data-doc-theme="dark">Dark</button>
+          </div>
+          <span class="cv-toggle-label">View</span>
+          <div class="cv-view-toggle" role="group" aria-label="Preview view">
+            <button type="button" data-view="json" class="active">JSON</button>
+            <button type="button" data-view="pdf">PDF</button>
+          </div>
         </div>
       </div>
       <div class="cv-preview-layout">
@@ -559,6 +602,7 @@ export class ExportOverlay {
     });
 
     this.bindExportOptions();
+    this.bindThemeToggle();
     this.bindViewToggle();
 
     this.renderSidebar(selectable);
@@ -589,6 +633,29 @@ export class ExportOverlay {
 
     const panel = this.shadow!.querySelector('.cv-overlay-panel') as HTMLElement;
     this.trapFocus(panel);
+  }
+
+  private bindThemeToggle(): void {
+    if (!this.shadow) return;
+
+    const applyActive = (): void => {
+      const theme = this.baseOptions?.theme ?? 'light';
+      this.shadow!.querySelectorAll('[data-doc-theme]').forEach((b) => {
+        b.classList.toggle('active', b.getAttribute('data-doc-theme') === theme);
+      });
+    };
+    applyActive();
+
+    this.shadow.querySelectorAll('[data-doc-theme]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const theme = btn.getAttribute('data-doc-theme') as 'light' | 'dark' | null;
+        if (!theme || !this.baseOptions || theme === this.baseOptions.theme) return;
+        this.baseOptions = { ...this.baseOptions, theme };
+        void saveOptions(this.baseOptions);
+        applyActive();
+        this.refreshPreview();
+      });
+    });
   }
 
   private bindViewToggle(): void {
