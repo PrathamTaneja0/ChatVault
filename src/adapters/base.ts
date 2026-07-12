@@ -3,11 +3,6 @@ import type { PlatformAdapter, SelectorDiagnostic } from '../core/adapter';
 import { dedupeMessages } from '../core/adapter';
 import { extractAttachmentsFromElement } from '../core/attachments';
 import {
-  collectImageAttachmentsFromElement,
-  findLiveImageElement,
-  hydrateImageAttachments,
-} from '../core/images';
-import {
   cloneContentWithoutExcluded,
   DEFAULT_ASSISTANT_EXCLUDE_SELECTORS,
   enforceTurnLimit,
@@ -119,10 +114,7 @@ export function createBaseAdapter(config: {
           let content = clone.textContent?.trim() ?? '';
           content = stripSuggestionChipText(content);
 
-          const attachments = [
-            ...extractAttachmentsFromElement(el, role, id, index),
-            ...collectImageAttachmentsFromElement(el, role, id, index),
-          ];
+          const attachments = extractAttachmentsFromElement(el, role, id, index);
 
           if (!content) return;
 
@@ -173,10 +165,6 @@ export function createBaseAdapter(config: {
           },
           messages: deduped,
         };
-
-        await hydrateImageAttachments(conversation, signal, (att) =>
-          findLiveImageElement(document, att.sourceUrl),
-        );
 
         return conversation;
       }, signal);

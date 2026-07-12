@@ -266,31 +266,6 @@ body {
   word-break: break-word;
 }
 
-/* ── Images ── */
-.message-attachment-image {
-  background: #ffffff;
-  text-align: center;
-}
-
-.message-attachment-image img {
-  max-width: 100%;
-  height: auto;
-  border-radius: 4px;
-  border: 1px solid #e5e7eb;
-}
-
-.message-attachment-image .image-caption {
-  margin-top: 6px;
-  font-size: 9pt;
-  color: #6b7280;
-}
-
-.message-attachment-image.image-not-embedded {
-  background: #f9fafb;
-  text-align: left;
-  color: #6b7280;
-  font-size: 9.5pt;
-}
 
 .message-reasoning .message-body {
   color: #000000;

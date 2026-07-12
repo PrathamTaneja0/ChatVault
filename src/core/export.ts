@@ -14,18 +14,7 @@ export interface ExportResult {
 }
 
 export function buildExportJson(conversation: Conversation, options: ExportOptions): string {
-  const messages = filterMessages(conversation.messages, options).map((msg) => {
-    if (!msg.attachments?.length) return msg;
-    return {
-      ...msg,
-      // Embedded image bytes are omitted from JSON to keep it readable/copyable
-      attachments: msg.attachments.map((att) =>
-        att.dataUrl
-          ? { ...att, dataUrl: `[embedded image ${att.width ?? '?'}x${att.height ?? '?'}]` }
-          : att,
-      ),
-    };
-  });
+  const messages = filterMessages(conversation.messages, options);
   const payload = {
     metadata: {
       ...conversation.metadata,

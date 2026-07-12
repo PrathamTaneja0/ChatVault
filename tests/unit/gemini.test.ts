@@ -57,14 +57,11 @@ describe('geminiAdapter', () => {
     expect(conversation.messages[1].content).not.toContain('Considering which chart type');
   });
 
-  it('collects content images as attachments with source urls', async () => {
+  it('does not emit image attachments (images are excluded from exports)', async () => {
     const promise = geminiAdapter.extract(document);
     await vi.runAllTimersAsync();
     const conversation = await promise;
 
-    const images = conversation.messages[1].attachments?.filter((a) => a.kind === 'image');
-    expect(images).toHaveLength(1);
-    expect(images![0].sourceUrl).toBe('https://lh3.googleusercontent.com/chart-q2');
-    expect(images![0].name).toBe('Q2 chart');
+    expect(conversation.messages[1].attachments ?? []).toHaveLength(0);
   });
 });

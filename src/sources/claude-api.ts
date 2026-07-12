@@ -38,18 +38,6 @@ interface ClaudeAttachmentEntry {
   extracted_content?: string;
 }
 
-interface ClaudeFileEntry {
-  file_kind?: string;
-  kind?: string;
-  file_uuid?: string;
-  uuid?: string;
-  file_name?: string;
-  preview_url?: string;
-  thumbnail_url?: string;
-  preview_asset?: { url?: string };
-  thumbnail_asset?: { url?: string };
-}
-
 interface ClaudeApiMessage {
   uuid?: string;
   text?: string;
@@ -58,8 +46,6 @@ interface ClaudeApiMessage {
   created_at?: string;
   content?: ClaudeContentBlock[];
   attachments?: ClaudeAttachmentEntry[];
-  files?: ClaudeFileEntry[];
-  files_v2?: ClaudeFileEntry[];
 }
 
 export interface ClaudeApiConversation {
@@ -191,62 +177,12 @@ function mapPasteAttachments(entries: ClaudeAttachmentEntry[] | undefined, messa
     }));
 }
 
-function resolveFileUrl(entry: ClaudeFileEntry, origin: string): string | undefined {
-  const raw =
-    entry.preview_url ??
-    entry.preview_asset?.url ??
-    entry.thumbnail_url ??
-    entry.thumbnail_asset?.url;
-  if (!raw) return undefined;
-  try {
-    return raw.startsWith('http') ? raw : new URL(raw, origin).href;
-  } catch {
-    return undefined;
-  }
-}
-
-function isImageFileEntry(entry: ClaudeFileEntry): boolean {
-  const kind = (entry.file_kind ?? entry.kind ?? '').toLowerCase();
-  if (kind === 'image') return true;
-  const name = (entry.file_name ?? '').toLowerCase();
-  return /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(name);
-}
-
-function mapImageAttachments(message: ClaudeApiMessage, origin: string, messageIndex: number): Attachment[] {
-  const entries = [...(message.files ?? []), ...(message.files_v2 ?? [])];
-  const attachments: Attachment[] = [];
-  const seen = new Set<string>();
-
-  entries.forEach((entry) => {
-    if (!isImageFileEntry(entry)) return;
-    const sourceUrl = resolveFileUrl(entry, origin);
-    if (!sourceUrl || seen.has(sourceUrl)) return;
-    seen.add(sourceUrl);
-    attachments.push({
-      id: generateId('claude-image', messageIndex * 10 + attachments.length),
-      kind: 'image',
-      name: entry.file_name ?? 'Image',
-      content: entry.file_name ?? 'Image',
-      sourceUrl,
-    });
-  });
-
-  return attachments;
-}
-
 export function mapClaudeApiConversation(
   payload: ClaudeApiConversation,
   pageUrl: string,
 ): Conversation | null {
   const apiMessages = payload.chat_messages;
   if (!Array.isArray(apiMessages) || apiMessages.length === 0) return null;
-
-  let origin = 'https://claude.ai';
-  try {
-    origin = new URL(pageUrl).origin;
-  } catch {
-    /* keep default */
-  }
 
   const ordered = [...apiMessages].sort((a, b) => {
     if (typeof a.index === 'number' && typeof b.index === 'number') return a.index - b.index;
@@ -278,7 +214,6 @@ export function mapClaudeApiConversation(
 
     const attachments: Attachment[] = [
       ...mapPasteAttachments(apiMsg.attachments, index),
-      ...mapImageAttachments(apiMsg, origin, index),
       ...(role === 'assistant' ? artifacts.toAttachments(index) : []),
     ];
 

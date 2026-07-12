@@ -26,10 +26,6 @@ export default defineConfig({
       'https://qwen.ai/*',
       'https://notebooklm.google.com/*',
       'https://aistudio.google.com/*',
-      // Image CDNs used by Gemini and ChatGPT content — fetched by the
-      // background worker to embed images in exports
-      'https://*.googleusercontent.com/*',
-      'https://*.oaiusercontent.com/*',
     ],
     action: {
       default_title: 'ChatVault Export',

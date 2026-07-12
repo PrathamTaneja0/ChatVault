@@ -3,7 +3,6 @@ import { enforceTurnLimit, waitForStreaming, withCircuitBreaker } from '../core/
 import type { Conversation } from '../core/schema';
 import type { PlatformAdapter } from '../core/adapter';
 import { extractChatGptViaApi } from '../sources/chatgpt-api';
-import { hydrateImageAttachments } from '../core/images';
 
 const selectors = {
   container: ['main', '[role="main"]', '.flex.flex-col.text-sm'],
@@ -64,8 +63,6 @@ export const chatgptAdapter: PlatformAdapter = {
         const viaApi = await extractChatGptViaApi(location, signal).catch(() => null);
         if (viaApi && viaApi.messages.length > 0) {
           enforceTurnLimit(viaApi.messages.length);
-          onProgress?.({ phase: 'waiting', message: 'Loading images…', percent: 60 });
-          await hydrateImageAttachments(viaApi, signal);
           onProgress?.({
             phase: 'done',
             message: `Extracted ${viaApi.messages.length} messages`,
@@ -73,6 +70,7 @@ export const chatgptAdapter: PlatformAdapter = {
           });
           return viaApi;
         }
+        console.info('[ChatVault] ChatGPT API extraction unavailable — falling back to page DOM');
       }
 
       const { scrollSweep, findScrollableContainer } = await import('../core/extract-utils');

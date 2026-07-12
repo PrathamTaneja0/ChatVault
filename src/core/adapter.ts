@@ -75,7 +75,7 @@ export function dedupeMessages(messages: Message[]): Message[] {
 
   for (const msg of messages) {
     const attachmentSig =
-      msg.attachments?.map((a) => a.sourceUrl ?? a.content.slice(0, 80)).join('|') ?? '';
+      msg.attachments?.map((a) => `${a.kind}:${a.content.slice(0, 80)}`).join('|') ?? '';
     const key = `${msg.role}:${msg.content.trim()}:${attachmentSig}`;
     if (key === prevKey) continue;
     prevKey = key;

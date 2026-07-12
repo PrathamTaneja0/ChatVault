@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  assetPointerToFileId,
   getChatGptConversationId,
   mapChatGptApiConversation,
   walkActiveBranch,
@@ -110,9 +109,9 @@ describe('mapChatGptApiConversation', () => {
     expect(conversation.metadata.title).toBe('Japan trip planning');
   });
 
-  it('maps multimodal image parts to image attachments with file placeholders', () => {
+  it('keeps the text of multimodal turns and marks image-only turns with a placeholder', () => {
     const payload: ChatGptApiConversation = {
-      current_node: 'n2',
+      current_node: 'n3',
       mapping: {
         n1: {
           id: 'n1',
@@ -124,7 +123,7 @@ describe('mapChatGptApiConversation', () => {
             content: {
               content_type: 'multimodal_text',
               parts: [
-                { content_type: 'image_asset_pointer', asset_pointer: 'file-service://file-AbC123', width: 800, height: 600 },
+                { content_type: 'image_asset_pointer' },
                 'What is in this picture?',
               ],
             },
@@ -133,9 +132,22 @@ describe('mapChatGptApiConversation', () => {
         n2: {
           id: 'n2',
           parent: 'n1',
-          children: [],
+          children: ['n3'],
           message: {
             id: 'm2',
+            author: { role: 'user' },
+            content: {
+              content_type: 'multimodal_text',
+              parts: [{ content_type: 'image_asset_pointer' }],
+            },
+          },
+        },
+        n3: {
+          id: 'n3',
+          parent: 'n2',
+          children: [],
+          message: {
+            id: 'm3',
             author: { role: 'assistant' },
             content: { content_type: 'text', parts: ['It shows a drill.'] },
           },
@@ -143,13 +155,13 @@ describe('mapChatGptApiConversation', () => {
       },
     };
     const conversation = mapChatGptApiConversation(payload, PAGE_URL)!;
-    const images = conversation.messages[0].attachments?.filter((a) => a.kind === 'image');
-    expect(images).toHaveLength(1);
-    expect(images![0].sourceUrl).toBe('chatgpt-file:file-AbC123');
     expect(conversation.messages[0].content).toBe('What is in this picture?');
+    expect(conversation.messages[0].attachments).toBeUndefined();
+    expect(conversation.messages[1].content).toBe('[image attachment omitted]');
+    expect(conversation.messages[2].content).toBe('It shows a drill.');
   });
 
-  it('keeps tool messages that carry generated images, skips other tool/system messages', () => {
+  it('skips tool and system messages entirely', () => {
     const payload: ChatGptApiConversation = {
       current_node: 'n3',
       mapping: {
@@ -172,7 +184,7 @@ describe('mapChatGptApiConversation', () => {
             author: { role: 'tool', name: 'dalle.text2im' },
             content: {
               content_type: 'multimodal_text',
-              parts: [{ content_type: 'image_asset_pointer', asset_pointer: 'file-service://file-Cat999' }],
+              parts: [{ content_type: 'image_asset_pointer' }],
             },
           },
         },
@@ -182,17 +194,15 @@ describe('mapChatGptApiConversation', () => {
           children: [],
           message: {
             id: 'm3',
-            author: { role: 'tool', name: 'browser' },
-            content: { content_type: 'text', parts: ['tool noise'] },
+            author: { role: 'assistant' },
+            content: { content_type: 'text', parts: ['Here is your cat.'] },
           },
         },
       },
     };
     const conversation = mapChatGptApiConversation(payload, PAGE_URL)!;
     expect(conversation.messages).toHaveLength(2);
-    const imageMsg = conversation.messages[1];
-    expect(imageMsg.role).toBe('assistant');
-    expect(imageMsg.attachments?.[0].sourceUrl).toBe('chatgpt-file:file-Cat999');
+    expect(conversation.messages.map((m) => m.role)).toEqual(['user', 'assistant']);
   });
 
   it('skips hidden messages and messages addressed to tools', () => {
@@ -244,10 +254,3 @@ describe('mapChatGptApiConversation', () => {
   });
 });
 
-describe('assetPointerToFileId', () => {
-  it('extracts file ids from asset pointers', () => {
-    expect(assetPointerToFileId('file-service://file-AbC123')).toBe('file-AbC123');
-    expect(assetPointerToFileId('sediment://file_0000abcd')).toBe('file_0000abcd');
-    expect(assetPointerToFileId('nonsense')).toBeUndefined();
-  });
-});

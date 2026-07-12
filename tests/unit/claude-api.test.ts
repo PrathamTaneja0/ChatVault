@@ -26,9 +26,6 @@ const MODERN_PAYLOAD: ClaudeApiConversation = {
       attachments: [
         { file_name: 'paste.txt', file_type: 'txt', extracted_content: FULL_PASTE },
       ],
-      files: [
-        { file_kind: 'image', file_name: 'site-photo.png', preview_url: '/api/files/img-1/preview' },
-      ],
     },
     {
       uuid: 'msg-2',
@@ -94,13 +91,6 @@ describe('mapClaudeApiConversation', () => {
     expect(pastes).toHaveLength(1);
     expect(pastes![0].content).toBe(FULL_PASTE);
     expect(pastes![0].name).toBe('paste.txt');
-  });
-
-  it('maps image files with absolute source URLs', () => {
-    const conversation = mapClaudeApiConversation(MODERN_PAYLOAD, PAGE_URL)!;
-    const images = conversation.messages[0].attachments?.filter((a) => a.kind === 'image');
-    expect(images).toHaveLength(1);
-    expect(images![0].sourceUrl).toBe('https://claude.ai/api/files/img-1/preview');
   });
 
   it('accumulates artifact create + update commands', () => {

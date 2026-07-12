@@ -1,4 +1,4 @@
-import type { Attachment, Conversation, Message } from '../core/schema';
+import type { Conversation, Message } from '../core/schema';
 import { generateId } from '../core/extract-utils';
 
 /**
@@ -15,14 +15,7 @@ const API_FETCH_TIMEOUT_MS = 15_000;
 
 /* ------------------------------------------------------------ payload types */
 
-interface ChatGptImagePart {
-  content_type?: string;
-  asset_pointer?: string;
-  width?: number;
-  height?: number;
-}
-
-type ChatGptPart = string | ChatGptImagePart;
+type ChatGptPart = string | { content_type?: string };
 
 interface ChatGptMessageContent {
   content_type?: string;
@@ -138,32 +131,18 @@ export function walkActiveBranch(
   return chain.reverse();
 }
 
-function isImagePart(part: ChatGptPart): part is ChatGptImagePart {
+function isImagePart(part: ChatGptPart): boolean {
   return (
     typeof part === 'object' &&
     part !== null &&
-    typeof part.asset_pointer === 'string' &&
     (part.content_type ?? '').includes('image')
   );
-}
-
-export function assetPointerToFileId(assetPointer: string): string | undefined {
-  // Strip the scheme (file-service://, sediment://, …) so it can't shadow the id
-  const withoutScheme = assetPointer.replace(/^[a-z-]+:\/\//i, '');
-  const match = withoutScheme.match(/(file[-_][A-Za-z0-9]+)/);
-  return match?.[1];
 }
 
 function shouldSkipMessage(msg: ChatGptApiMessage): boolean {
   const role = msg.author?.role ?? '';
   if (msg.metadata?.is_visually_hidden_from_conversation) return true;
   if (msg.recipient && msg.recipient !== 'all') return true;
-  if (role === 'system') return true;
-  if (role === 'tool') {
-    // Keep tool messages only when they carry images (e.g. generated images)
-    const parts = msg.content?.parts ?? [];
-    return !parts.some(isImagePart);
-  }
   return role !== 'user' && role !== 'assistant';
 }
 
@@ -184,7 +163,7 @@ export function mapChatGptApiConversation(
     const role = apiMsg.author?.role === 'user' ? 'user' : 'assistant';
     const content = apiMsg.content;
     const textParts: string[] = [];
-    const attachments: Attachment[] = [];
+    let hasImageParts = false;
 
     if (content?.content_type === 'thoughts' && Array.isArray(content.thoughts)) {
       const thinking = content.thoughts
@@ -211,23 +190,15 @@ export function mapChatGptApiConversation(
       if (typeof part === 'string') {
         if (part.trim()) textParts.push(part.trim());
       } else if (isImagePart(part)) {
-        const fileId = assetPointerToFileId(part.asset_pointer!);
-        if (!fileId) continue;
-        attachments.push({
-          id: generateId('chatgpt-image', index * 10 + attachments.length),
-          kind: 'image',
-          name: 'Image',
-          content: 'Image',
-          // Placeholder; resolved to a signed URL in resolveChatGptImageUrls
-          sourceUrl: `chatgpt-file:${fileId}`,
-          width: part.width,
-          height: part.height,
-        });
+        hasImageParts = true;
       }
     }
 
-    const text = textParts.join('\n\n').trim();
-    if (!text && attachments.length === 0) return;
+    // Images are intentionally not exported; keep a placeholder so the
+    // conversation flow stays readable when a turn was only an image.
+    let text = textParts.join('\n\n').trim();
+    if (!text && hasImageParts) text = '[image attachment omitted]';
+    if (!text) return;
 
     messages.push({
       id: apiMsg.id ?? generateId('chatgpt', index),
@@ -236,7 +207,6 @@ export function mapChatGptApiConversation(
       timestamp: apiMsg.create_time
         ? new Date(apiMsg.create_time * 1000).toISOString()
         : undefined,
-      attachments: attachments.length > 0 ? attachments : undefined,
     });
   });
 
@@ -259,31 +229,6 @@ export function mapChatGptApiConversation(
 
 /* ------------------------------------------------------------------ source */
 
-/** Swap chatgpt-file:{id} placeholders for signed download URLs. */
-async function resolveChatGptImageUrls(
-  conversation: Conversation,
-  origin: string,
-  token: string,
-  signal?: AbortSignal,
-): Promise<void> {
-  for (const message of conversation.messages) {
-    for (const att of message.attachments ?? []) {
-      if (att.kind !== 'image' || !att.sourceUrl?.startsWith('chatgpt-file:')) continue;
-      const fileId = att.sourceUrl.slice('chatgpt-file:'.length);
-      const info = await fetchJson<{ download_url?: string }>(
-        `${origin}/backend-api/files/${fileId}/download`,
-        signal,
-        { authorization: `Bearer ${token}` },
-      );
-      if (info?.download_url) {
-        att.sourceUrl = info.download_url;
-      } else {
-        att.sourceUrl = undefined;
-      }
-    }
-  }
-}
-
 export async function extractChatGptViaApi(
   location: { href: string; origin: string; pathname: string },
   signal?: AbortSignal,
@@ -301,9 +246,5 @@ export async function extractChatGptViaApi(
   );
   if (!payload) return null;
 
-  const conversation = mapChatGptApiConversation(payload, location.href);
-  if (!conversation) return null;
-
-  await resolveChatGptImageUrls(conversation, location.origin, token, signal);
-  return conversation;
+  return mapChatGptApiConversation(payload, location.href);
 }

@@ -122,15 +122,15 @@ describe('dedupeMessages (adjacent only)', () => {
     const messages: Message[] = [
       {
         id: '1',
-        role: 'assistant',
-        content: '',
-        attachments: [{ id: 'a', kind: 'image', content: 'Image', sourceUrl: 'https://x/1.png' }],
+        role: 'user',
+        content: 'see attached',
+        attachments: [{ id: 'a', kind: 'paste', content: 'First pasted document body' }],
       },
       {
         id: '2',
-        role: 'assistant',
-        content: '',
-        attachments: [{ id: 'b', kind: 'image', content: 'Image', sourceUrl: 'https://x/2.png' }],
+        role: 'user',
+        content: 'see attached',
+        attachments: [{ id: 'b', kind: 'paste', content: 'Second pasted document body' }],
       },
     ];
     expect(dedupeMessages(messages)).toHaveLength(2);
