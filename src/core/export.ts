@@ -61,50 +61,18 @@ export function extractMainHtml(html: string): string {
 
 type PdfMakeContent = Record<string, unknown>;
 
-interface PdfPalette {
-  pageBg: string;
-  text: string;
-  heading: string;
-  muted: string;
-  faint: string;
-  link: string;
-  user: string;
-  assistant: string;
-  reasoning: string;
-  surface: string;
-  codeBg: string;
-  codeText: string;
-}
-
-const PDF_PALETTES: Record<'light' | 'dark', PdfPalette> = {
-  light: {
-    pageBg: '#ffffff',
-    text: '#1f2937',
-    heading: '#111827',
-    muted: '#6b7280',
-    faint: '#9ca3af',
-    link: '#4f46e5',
-    user: '#4f46e5',
-    assistant: '#059669',
-    reasoning: '#6b7280',
-    surface: '#f9fafb',
-    codeBg: '#16161e',
-    codeText: '#e2e8f0',
-  },
-  dark: {
-    pageBg: '#0f1117',
-    text: '#d7dbe2',
-    heading: '#f3f4f6',
-    muted: '#9aa2af',
-    faint: '#6b7280',
-    link: '#818cf8',
-    user: '#818cf8',
-    assistant: '#34d399',
-    reasoning: '#9aa2af',
-    surface: '#171a21',
-    codeBg: '#16161e',
-    codeText: '#e2e8f0',
-  },
+const PDF_PALETTE = {
+  text: '#1f2937',
+  heading: '#111827',
+  muted: '#6b7280',
+  faint: '#9ca3af',
+  link: '#4f46e5',
+  user: '#4f46e5',
+  assistant: '#059669',
+  reasoning: '#6b7280',
+  surface: '#f9fafb',
+  codeBg: '#16161e',
+  codeText: '#e2e8f0',
 };
 
 /** One Dark token colors — the hljs class names become pdfmake style names. */
@@ -146,15 +114,12 @@ const HLJS_PDF_STYLES: Record<string, Record<string, unknown>> = {
   'hljs-strong': { bold: true },
 };
 
-export async function htmlToPdfMakeContent(
-  html: string,
-  theme: 'light' | 'dark' = 'light',
-): Promise<PdfMakeContent[]> {
+export async function htmlToPdfMakeContent(html: string): Promise<PdfMakeContent[]> {
   const htmlToPdfmakeModule = await import('html-to-pdfmake');
   const htmlToPdfmake = (htmlToPdfmakeModule as { default?: (html: string, options?: Record<string, unknown>) => unknown }).default
     ?? htmlToPdfmakeModule;
 
-  const palette = PDF_PALETTES[theme];
+  const palette = PDF_PALETTE;
   const mainHtml = extractMainHtml(html);
   const result = (htmlToPdfmake as (html: string, options?: Record<string, unknown>) => unknown)(mainHtml, {
     window,
@@ -182,9 +147,6 @@ export async function htmlToPdfMakeContent(
   return [result as PdfMakeContent];
 }
 
-const A4_WIDTH_PT = 595.28;
-const A4_HEIGHT_PT = 841.89;
-
 export async function downloadViaPdfMake(
   conversation: Conversation,
   options: ExportOptions,
@@ -198,11 +160,10 @@ export async function downloadViaPdfMake(
   const vfs = fontsModule.pdfMake?.vfs ?? fontsModule.default?.pdfMake?.vfs ?? {};
   pdfMakeModule.vfs = vfs;
 
-  const theme = options.theme ?? 'light';
-  const palette = PDF_PALETTES[theme];
+  const palette = PDF_PALETTE;
 
   const { html } = buildExportDocument(conversation, options);
-  const bodyContent = await htmlToPdfMakeContent(html, theme);
+  const bodyContent = await htmlToPdfMakeContent(html);
 
   const docDefinition = {
     info: {
@@ -211,11 +172,6 @@ export async function downloadViaPdfMake(
     },
     pageSize: 'A4' as const,
     pageMargins: [72, 72, 72, 72] as [number, number, number, number],
-    background: () => ({
-      canvas: [
-        { type: 'rect', x: 0, y: 0, w: A4_WIDTH_PT, h: A4_HEIGHT_PT, color: palette.pageBg },
-      ],
-    }),
     footer: (currentPage: number) => ({
       text: String(currentPage),
       alignment: 'center' as const,

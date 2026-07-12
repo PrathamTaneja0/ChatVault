@@ -1,7 +1,6 @@
 /* ChatVault Export – Print stylesheet (A4 PDF layout)
  *
- * Themed via CSS custom properties: html[data-theme='dark'] swaps the palette.
- * Code blocks are always dark (One Dark tokens) in both themes. */
+ * Light document; code blocks render as dark panels with One Dark tokens. */
 
 :root {
   --cv-page-bg: #ffffff;
@@ -22,24 +21,6 @@
   --cv-code-bg: #16161e;
   --cv-code-text: #e2e8f0;
   --cv-code-border: #26263a;
-}
-
-html[data-theme='dark'] {
-  --cv-page-bg: #0f1117;
-  --cv-text: #f3f4f6;
-  --cv-text-body: #d7dbe2;
-  --cv-muted: #9aa2af;
-  --cv-faint: #6b7280;
-  --cv-border: #262a33;
-  --cv-surface: #171a21;
-  --cv-table-head: #1c2028;
-  --cv-user: #818cf8;
-  --cv-user-soft: rgba(129, 140, 248, 0.14);
-  --cv-assistant: #34d399;
-  --cv-assistant-soft: rgba(52, 211, 153, 0.12);
-  --cv-reasoning: #9aa2af;
-  --cv-reasoning-soft: rgba(154, 162, 175, 0.12);
-  --cv-inline-code-bg: #1c2028;
 }
 
 @page {

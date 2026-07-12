@@ -148,13 +148,12 @@ export function renderConversationHtml(
 ): string {
   const messages = filterMessages(conversation.messages, options);
   const title = conversation.metadata.title ?? 'Chat Export';
-  const theme = options.theme ?? 'light';
 
   const body = messages.map((m, i) => renderMessageHtml(m, i)).join('\n');
   const previewCss = mode === 'preview' ? PREVIEW_SCREEN_CSS : '';
 
   return `<!DOCTYPE html>
-<html lang="en" data-theme="${theme}">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">

@@ -268,18 +268,6 @@ describe('renderConversationHtml', () => {
     expect(html).toContain('class="message-body"');
     expect(printCss).toContain('.message-body');
     expect(printCss).toContain('var(--cv-text-body)');
-    expect(printCss).toContain("html[data-theme='dark']");
-  });
-
-  it('renders the light theme by default and dark when requested', () => {
-    const light = renderConversationHtml(baseConversation, DEFAULT_EXPORT_OPTIONS);
-    expect(light).toContain('data-theme="light"');
-
-    const dark = renderConversationHtml(baseConversation, {
-      ...DEFAULT_EXPORT_OPTIONS,
-      theme: 'dark',
-    });
-    expect(dark).toContain('data-theme="dark"');
   });
 
   it('renders a document header with title and metadata', () => {

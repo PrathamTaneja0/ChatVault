@@ -151,24 +151,12 @@ const OVERLAY_STYLES = `
     cursor: pointer;
     accent-color: #6366f1;
   }
-  .cv-toggle-group {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    margin-left: auto;
-  }
-  .cv-toggle-label {
-    font-size: 11px;
-    color: #737373;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-right: 2px;
-  }
   .cv-view-toggle {
     display: inline-flex;
     border: 1px solid #404040;
     border-radius: 8px;
     overflow: hidden;
+    margin-left: auto;
   }
   .cv-view-toggle button {
     font-size: 12px;
@@ -406,6 +394,7 @@ const OVERLAY_STYLES = `
     word-break: break-word;
   }
   .cv-source-badge {
+    position: relative;
     display: inline-block;
     font-size: 10px;
     font-weight: 600;
@@ -413,8 +402,39 @@ const OVERLAY_STYLES = `
     text-transform: uppercase;
     padding: 2px 8px;
     border-radius: 999px;
-    margin-left: 10px;
-    vertical-align: middle;
+    margin: 0 10px;
+    flex-shrink: 0;
+    cursor: default;
+    transition: filter 0.15s ease, transform 0.15s ease;
+  }
+  .cv-source-badge:hover {
+    filter: brightness(1.35);
+    transform: translateY(-1px);
+  }
+  .cv-source-badge::after {
+    content: attr(data-tip);
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: #2d2d33;
+    border: 1px solid #3f3f46;
+    color: #e5e5e5;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: normal;
+    text-transform: none;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateY(-2px);
+    transition: opacity 0.12s ease 0.1s, transform 0.12s ease 0.1s;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .cv-source-badge:hover::after {
+    opacity: 1;
+    transform: translateY(0);
   }
   .cv-source-badge-api {
     background: rgba(16, 185, 129, 0.16);
@@ -423,6 +443,41 @@ const OVERLAY_STYLES = `
   .cv-source-badge-dom {
     background: rgba(245, 158, 11, 0.16);
     color: #fbbf24;
+  }
+  .cv-copy-toast {
+    position: absolute;
+    left: 50%;
+    bottom: 72px;
+    transform: translate(-50%, 8px);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #26262c;
+    border: 1px solid #3f3f46;
+    color: #ececec;
+    font-size: 13px;
+    padding: 9px 16px;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    z-index: 20;
+  }
+  .cv-copy-toast.visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  .cv-copy-toast .cv-toast-check {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #10b981;
+    color: #fff;
+    font-size: 11px;
+    line-height: 16px;
+    text-align: center;
+    font-weight: 700;
   }
   /* Dark scrollbars matching the overlay chrome */
   .cv-overlay-panel *::-webkit-scrollbar {
@@ -542,17 +597,9 @@ export class ExportOverlay {
           <input type="checkbox" data-opt-thinking checked />
           Include thinking/reasoning chains
         </label>
-        <div class="cv-toggle-group">
-          <span class="cv-toggle-label">Theme</span>
-          <div class="cv-view-toggle" role="group" aria-label="Document theme">
-            <button type="button" data-doc-theme="light" class="active">Light</button>
-            <button type="button" data-doc-theme="dark">Dark</button>
-          </div>
-          <span class="cv-toggle-label">View</span>
-          <div class="cv-view-toggle" role="group" aria-label="Preview view">
-            <button type="button" data-view="json" class="active">JSON</button>
-            <button type="button" data-view="pdf">PDF</button>
-          </div>
+        <div class="cv-view-toggle" role="group" aria-label="Preview view">
+          <button type="button" data-view="json" class="active">JSON</button>
+          <button type="button" data-view="pdf">PDF</button>
         </div>
       </div>
       <div class="cv-preview-layout">
@@ -602,7 +649,6 @@ export class ExportOverlay {
     });
 
     this.bindExportOptions();
-    this.bindThemeToggle();
     this.bindViewToggle();
 
     this.renderSidebar(selectable);
@@ -623,39 +669,27 @@ export class ExportOverlay {
 
     const title = this.shadow!.querySelector('.cv-overlay-title')!;
     const msgCount = selectable.length;
+    title.textContent = `${conversation.metadata.title ?? 'Chat Export'} · ${msgCount} messages`;
+
+    // Badge lives beside the title (h2 clips overflow, which would cut the tooltip)
+    const header = this.shadow!.querySelector('.cv-overlay-header')!;
+    header.querySelector('.cv-source-badge')?.remove();
     const source = conversation.metadata.source;
-    const sourceBadge = source
-      ? `<span class="cv-source-badge cv-source-badge-${source}" title="${
-          source === 'api' ? 'Captured from the platform API (exact)' : 'Captured from the page DOM'
-        }">${source === 'api' ? 'API' : 'Page'}</span>`
-      : '';
-    title.innerHTML = `${escapeHtml(conversation.metadata.title ?? 'Chat Export')} · ${msgCount} messages${sourceBadge}`;
+    if (source) {
+      const badge = document.createElement('span');
+      badge.className = `cv-source-badge cv-source-badge-${source}`;
+      badge.textContent = source === 'api' ? 'API' : 'Page';
+      badge.setAttribute(
+        'data-tip',
+        source === 'api'
+          ? 'Captured from the platform API — exact conversation data'
+          : 'Captured from the page — used when no API is available',
+      );
+      header.insertBefore(badge, header.querySelector('.cv-overlay-close'));
+    }
 
     const panel = this.shadow!.querySelector('.cv-overlay-panel') as HTMLElement;
     this.trapFocus(panel);
-  }
-
-  private bindThemeToggle(): void {
-    if (!this.shadow) return;
-
-    const applyActive = (): void => {
-      const theme = this.baseOptions?.theme ?? 'light';
-      this.shadow!.querySelectorAll('[data-doc-theme]').forEach((b) => {
-        b.classList.toggle('active', b.getAttribute('data-doc-theme') === theme);
-      });
-    };
-    applyActive();
-
-    this.shadow.querySelectorAll('[data-doc-theme]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const theme = btn.getAttribute('data-doc-theme') as 'light' | 'dark' | null;
-        if (!theme || !this.baseOptions || theme === this.baseOptions.theme) return;
-        this.baseOptions = { ...this.baseOptions, theme };
-        void saveOptions(this.baseOptions);
-        applyActive();
-        this.refreshPreview();
-      });
-    });
   }
 
   private bindViewToggle(): void {
@@ -684,14 +718,7 @@ export class ExportOverlay {
     if (this.previewMode === 'json') {
       const json = buildExportJson(this.conversation, opts);
       await navigator.clipboard.writeText(json);
-      const btn = this.shadow?.querySelector('[data-action="primary"]') as HTMLButtonElement;
-      if (btn) {
-        const original = btn.textContent;
-        btn.textContent = 'Copied!';
-        setTimeout(() => {
-          if (btn.isConnected) btn.textContent = original;
-        }, 1500);
-      }
+      this.showCopyToast();
       return;
     }
 
@@ -703,6 +730,19 @@ export class ExportOverlay {
     if (btn) {
       btn.textContent = this.previewMode === 'json' ? 'Copy' : 'Download PDF';
     }
+  }
+
+  private copyToastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private showCopyToast(): void {
+    const toast = this.shadow?.querySelector('.cv-copy-toast');
+    if (!toast) return;
+    toast.classList.add('visible');
+    if (this.copyToastTimer) clearTimeout(this.copyToastTimer);
+    this.copyToastTimer = setTimeout(() => {
+      toast.classList.remove('visible');
+      this.copyToastTimer = null;
+    }, 1600);
   }
 
   private bindExportOptions(): void {
@@ -918,6 +958,10 @@ export class ExportOverlay {
   }
 
   destroy(): void {
+    if (this.copyToastTimer !== null) {
+      clearTimeout(this.copyToastTimer);
+      this.copyToastTimer = null;
+    }
     if (this.scalePreviewFrame !== null) {
       cancelAnimationFrame(this.scalePreviewFrame);
       this.scalePreviewFrame = null;
@@ -967,6 +1011,10 @@ export class ExportOverlay {
         </div>
         <div class="cv-overlay-body"></div>
         <div class="cv-overlay-footer"></div>
+        <div class="cv-copy-toast" role="status" aria-live="polite">
+          <span class="cv-toast-check" aria-hidden="true">✓</span>
+          <span>Copied to clipboard</span>
+        </div>
         <div class="cv-panel-resize-grip" aria-hidden="true"></div>
       </div>
     `;

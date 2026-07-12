@@ -44,20 +44,15 @@ export interface Conversation {
   messages: Message[];
 }
 
-export type DocumentTheme = 'light' | 'dark';
-
 export interface ExportOptions {
   includeThinking: boolean;
   selectedMessageIds?: string[];
   filenameTemplate?: string;
-  /** Document theme for the PDF/preview (code blocks are always dark) */
-  theme?: DocumentTheme;
 }
 
 export const DEFAULT_EXPORT_OPTIONS: ExportOptions = {
   includeThinking: true,
   filenameTemplate: 'ChatVault_{title}',
-  theme: 'light',
 };
 
 export const MAX_TURNS = 500;

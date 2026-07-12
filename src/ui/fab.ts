@@ -63,10 +63,10 @@ export function createFab(onClick: () => void): HTMLElement {
 
   const fab = document.createElement('button');
   fab.className = 'cv-fab';
-  fab.setAttribute('aria-label', 'Export chat to PDF (Ctrl+Shift+E)');
-  fab.title = 'Export chat to PDF';
+  fab.setAttribute('aria-label', 'Export chat (Ctrl+Shift+E)');
+  fab.title = 'Export chat';
   fab.innerHTML = `
-    <span class="cv-fab-tooltip">Export to PDF</span>
+    <span class="cv-fab-tooltip">Export chat</span>
     <img class="cv-fab-icon" src="${iconUrl}" width="52" height="52" alt="" draggable="false" />
   `;
   fab.addEventListener('click', (e) => {
